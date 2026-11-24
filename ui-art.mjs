@@ -1,0 +1,6 @@
+import{chromium}from'@playwright/test';import{spawn}from'node:child_process';
+const server=spawn('node',['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5189'],{stdio:'pipe'});let browser;
+try{for(let i=0;i<50;i++){try{await fetch('http://127.0.0.1:5189');break;}catch{await new Promise(r=>setTimeout(r,100));}}browser=await chromium.launch({headless:true,args:['--no-sandbox']});const p=await browser.newPage({viewport:{width:1280,height:900}});await p.goto('http://127.0.0.1:5189');
+await p.evaluate(async()=>{const{createCampaign}=await import('/src/engine.ts');let game=createCampaign(48,'mars');localStorage.setItem('kingdom-independent.saves.v1',JSON.stringify([{id:'art',profile:'שחקן 1',name:'art',updated:Date.now(),game}]))});await p.reload();await p.getByRole('button',{name:'פתיחה',exact:true}).click();await p.getByRole('navigation').getByRole('button',{name:'עיר',exact:true}).click();await p.getByRole('heading',{name:'חצרות הגיוס'}).scrollIntoViewIfNeeded();await p.waitForTimeout(400);await p.screenshot({path:'/downloads/solo-roster-desktop.png'});
+await p.setViewportSize({width:390,height:844});await p.getByRole('heading',{name:'חצרות הגיוס'}).scrollIntoViewIfNeeded();await p.screenshot({path:'/downloads/solo-roster-390.png'});
+}finally{await browser?.close();server.kill()}

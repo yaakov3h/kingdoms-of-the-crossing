@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createCampaign, apply, active, movementCost, routeTo, routeCost, worldNeighbors } from './src/engine';
+import { buildings, createCampaign, apply, active, movementCost, routeTo, routeCost, worldNeighbors } from './src/engine';
 import { validateGame, exportSave, importSave } from './src/storage';
 import { landscape } from './src/catalog';
 const legacy = JSON.parse(readFileSync('test-fixtures/legacy-v6.json','utf8'));
@@ -20,3 +20,47 @@ const g=createCampaign(16); g.terrain[1]=2; g.roads=[]; active(g).ap=2;
 assert.throws(()=>apply(g,{kind:'move',target:1}),/נקודות תנועה/);assert.equal(g.pos,0);assert.equal(active(g).ap,2);
 assert.throws(()=>apply(g,{kind:'move',target:23}));
 console.log('PASS 160 large-world seeds/factions/save roundtrips, legacy AP preserved, weighted diagonal movement, AP cost and rollback');
+import {rosters}from'./src/roster';
+for(const f of ['mars','crystal','tide','grove']){
+ let town=createCampaign(55,f);town.gold=500;town.ore=500;town.crystal=500;
+ assert.throws(()=>apply(town,{kind:'build',unit:'observatory'}),/מבנה נדרש/);
+ town=apply(town,{kind:'build',unit:'barracks'});assert.throws(()=>apply(town,{kind:'build',unit:'workshop'}),/אחד ביום/);
+ town=apply(town,{kind:'endDay'});town=apply(town,{kind:'build',unit:'workshop'});
+ town=apply(town,{kind:'endDay'});town=apply(town,{kind:'build',unit:'sanctuary'});
+ town=apply(town,{kind:'endDay'});town=apply(town,{kind:'build',unit:'observatory'});
+ town=apply(town,{kind:'endDay'});town=apply(town,{kind:'upgrade'});
+ town=apply(town,{kind:'endDay'});town=apply(town,{kind:'build',unit:'barracks'});
+ for(let k=3;k<=7;k++){
+  const fixture=structuredClone(town);fixture.army=fixture.army.slice(0,3);fixture.heroes[0].army=fixture.army;
+  const old=fixture.recruitmentStock![k],next=apply(fixture,{kind:'recruit',unitKind:k});
+  assert.equal(next.army.at(-1)!.name,rosters[f][k].name);assert.equal(next.recruitmentStock![k],old-1);validateGame(next);
+ }
+ const exhausted=structuredClone(town);exhausted.recruitmentStock![0]=0;assert.throws(()=>apply(exhausted,{kind:'recruit',unitKind:0}),/המלאי אזל/);
+ let week=structuredClone(town);while(week.day<8)week=apply(week,{kind:'endDay'});assert.ok(week.recruitmentStock![0]>town.recruitmentStock![0]);
+ const imported=importSave(exportSave({...legacy,game:week}),'test');validateGame(imported.game);
+}
+console.log('PASS four faction town chains, one-build/day, level prerequisite, 20 advanced recruitment cases, stock exhaustion/week growth and save reload');
+// A town can progress from its actual opening budget and daily economy, without injected resources.
+for(const f of Object.keys(rosters)){
+ let g=createCampaign(120,f,24,1);
+ const waitFor=(cost:number[])=>{let safety=0;while((g.gold<cost[0]||g.ore<cost[1]||g.crystal<cost[2])&&safety++<160){
+  if(g.crystal<cost[2]&&g.gold>=6&&active(g).ap>0)g=apply(g,{kind:'trade',unit:'crystal'});
+  else g=apply(g,{kind:'endDay'});
+ }assert.ok(safety<160);};
+ for(const key of ['barracks','workshop','sanctuary','observatory']){
+  const costs=key==='barracks'?[8,4,0]:key==='workshop'?[10,5,0]:key==='sanctuary'?[8,2,3]:[12,4,4];
+  // Read the actual catalog, so this tests reachability rather than duplicating the costs.
+  waitFor(buildings[key].cost[g.buildings[key]]);if(g.builtDay===g.day)g=apply(g,{kind:'endDay'});g=apply(g,{kind:'build',unit:key});validateGame(g);
+ }
+ assert.ok(g.day<100);assert.equal(g.buildings.observatory,1);
+}
+console.log('PASS all four towns naturally reach observatory from real opening resources and daily income/trade');
+import {ability,campaignUnit}from'./src/engine';
+for(const f of Object.keys(rosters))for(let k=0;k<8;k++){
+ let g=createCampaign(220,f),u=campaignUnit(g,k,'test-unit');u.hp=Math.max(1,u.max-5);u.pos=12;
+ const e={...campaignUnit({...g,faction:f==='mars'?'crystal':'mars'},6,'enemy'),side:1,pos:13,hp:100,max:100,damage:1};
+ g.army=[u];active(g).army=g.army;g.battle={site:2,units:[u,e],selected:u.id,round:1};
+ const d=ability(g,u);assert.ok(d);const next=apply(g,{kind:'ability',unit:u.id,enemy:e.id});assert.equal(next.battle!.units[0].used,true);validateGame(next);assert.throws(()=>apply(next,{kind:'ability',unit:u.id,enemy:e.id}),/היכולת לא זמינה/);
+ const save=importSave(exportSave({...legacy,game:next}),'test');assert.equal(save.game.battle!.units[0].used,true);
+}
+console.log('PASS all32troop abilities, single-use enforcement and in-battle save reload');
