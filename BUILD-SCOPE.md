@@ -19,7 +19,7 @@ Percentages refer to verified outcomes of this upgrade, not elapsed time or ever
 Network persistence, remote multiplayer/group play, external identity setup and any paid service. Keep the existing command/state boundary so a server adapter can be added later. Solo saves remain local to the browser unless exported.
 
 ## Publication
-Prepare locally. Private GitHub source repository approved under yaakov3h. Source synchronization tracked separately. No public Pages deployment inferred. Previous game preview remains unchanged.
+Status 2026-11-24: source is in the public repository yaakov3h/kingdoms-of-the-crossing, and the static solo build is live at https://kingdoms-of-the-crossing.pages.dev/. The previous game preview remains unchanged. Earlier notes said the repository was private and nothing was deployed; that was true while building.
 
 ## Risks
 Faction balance is iterative. Browser emulation is not physical-phone performance testing. Existing save imports must be checked against fixtures before a migration is advertised.
