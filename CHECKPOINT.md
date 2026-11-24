@@ -1,6 +1,6 @@
 # Solo checkpoint 0.2.0
 
-The 90% checkpoint is complete. Latest phone-playable delivery, complete private source synchronization and final release closeout remain separate open outcomes. The old hosted 0.11 publication is unchanged.
+Status 2026-11-24: the final audited build is deployed at https://kingdoms-of-the-crossing.pages.dev/ and its source is in this public repository. The old hosted 0.11 publication is unchanged. The notes below were written at the 90% checkpoint and are kept as history, except where marked. SHA256SUMS lists the audited build; README.md, BUILD-SCOPE.md and CHECKPOINT.md were edited afterwards for status and credits.
 
 ## Current work
 - Four original factions, eight units each;24/32random worlds; weighted eight-way map-tap route walking; local independent hero armies.
@@ -19,7 +19,7 @@ The 90% checkpoint is complete. Latest phone-playable delivery, complete private
 - Performance: live retained canvas, normal route p95 roughly17ms; fourfold CPU-throttled route p95 roughly33ms. Synthetic environment, not physical-phone performance.
 
 ## Remaining limits
-- No public hosting or paid service. Existing hosted private React viewer is a different format; directly inserting this build would break its storage/download assumptions.
+- No paid service. (At checkpoint time there was no public hosting; the static build is now live at the address above.) Existing hosted private React viewer is a different format; directly inserting this build would break its storage/download assumptions.
 - Portable HTML is a computer fallback, not a verified phone-delivery route. Saves stay local to that browser/origin/file path; no automatic migration from the old hosted game.
 - Faction balance and pacing remain iterative. Army limit is six individual units, not troop stacks. All world terrain is traversable at varying costs.
 - Experimental paired source and tests remain for later work; they are not enabled as the delivered solo experience. No terms/accounts/auth/money work is authorized by these build notes.
