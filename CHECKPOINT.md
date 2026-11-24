@@ -1,6 +1,6 @@
 # Solo checkpoint 0.2.0
 
-Status 2026-11-24: the final audited build is deployed at https://kingdoms-of-the-crossing.pages.dev/ and its source is in this public repository. The old hosted 0.11 publication is unchanged. The notes below were written at the 90% checkpoint and are kept as history, except where marked. SHA256SUMS lists the audited build; README.md, BUILD-SCOPE.md and CHECKPOINT.md were edited afterwards for status and credits.
+Status 2026-11-24: the final audited build is deployed at https://kingdoms-of-the-crossing.pages.dev/ and its source is in this public repository. The old hosted 0.11 publication is unchanged. The notes below were written at the 90% checkpoint and are kept as history, except where marked. SHA256SUMS is the manifest of the current source tree in this repository (every tracked file except itself); check it with sha256sum -c SHA256SUMS. The audited production build it was derived from differs from it only in README.md, BUILD-SCOPE.md, CHECKPOINT.md and .gitignore (blank lines), which were edited for status and credits.
 
 ## Current work
 - Four original factions, eight units each;24/32random worlds; weighted eight-way map-tap route walking; local independent hero armies.
