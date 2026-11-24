@@ -19,7 +19,7 @@ Percentages refer to verified outcomes of this upgrade, not elapsed time or ever
 Network persistence, remote multiplayer/group play, external identity setup and any paid service. Keep the existing command/state boundary so a server adapter can be added later. Solo saves remain local to the browser unless exported.
 
 ## Publication
-Prepare locally. Private GitHub source repository recommended; account/audience confirmation pending. No public Pages deployment inferred. Previous game preview remains unchanged.
+Prepare locally. Private GitHub source repository approved under yaakov3h. Source synchronization tracked separately. No public Pages deployment inferred. Previous game preview remains unchanged.
 
 ## Risks
 Faction balance is iterative. Browser emulation is not physical-phone performance testing. Existing save imports must be checked against fixtures before a migration is advertised.

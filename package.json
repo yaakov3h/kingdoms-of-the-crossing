@@ -7,7 +7,8 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "test": "tsx tests.ts",
-    "test:solo": "tsx tests-solo.ts"
+    "test:solo": "tsx tests-solo.ts",
+    "build:portable": "vite build --config vite.portable.config.ts && python3 scripts/build-portable.py"
   },
   "dependencies": {
     "phaser": "3.90.0"

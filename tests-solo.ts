@@ -64,3 +64,27 @@ for(const f of Object.keys(rosters))for(let k=0;k<8;k++){
  const save=importSave(exportSave({...legacy,game:next}),'test');assert.equal(save.game.battle!.units[0].used,true);
 }
 console.log('PASS all32troop abilities, single-use enforcement and in-battle save reload');
+for(const f of Object.keys(rosters))for(const item of ['lens','shield','coil']){
+ let g=createCampaign(843,f);g.gold=80;g.ore=30;g.crystal=20;g.relics=[item];
+ g=apply(g,{kind:'hireHero'});const otherBefore=structuredClone(g.heroes[1]);g=apply(g,{kind:'equip',unit:item});
+ const original=structuredClone(g.army);for(let repeat=0;repeat<3;repeat++){
+  const site=g.sites.find(s=>s.guard===1&&s.type!=='gate')!;g.pos=site.id;active(g).pos=site.id;active(g).ap=14;g=apply(g,{kind:'visit'});
+  const unit=g.battle!.units.find(u=>u.side===0&&u.kind===2)!;assert.equal(unit.range,original[2].range+(item==='lens'?1:0));assert.equal(unit.damage,original[2].damage+(item==='coil'?1:0));
+  g=apply(g,{kind:'retreat'});assert.deepEqual(g.army.map(u=>[u.damage,u.range]),original.map(u=>[u.damage,u.range]));assert.deepEqual(g.heroes[1],otherBefore);validateGame(g);
+ }
+ const h0=active(g);h0.xp=45;h0.rank=3;g=apply(g,{kind:'talent',unit:'attack'});g=apply(g,{kind:'talent',unit:'defense'});assert.equal(active(g).attack,1);assert.equal(active(g).defense,1);assert.throws(()=>apply(g,{kind:'talent',unit:'attack'}),/נקודת דרגה/);
+ const ap=active(g).ap;g=apply(g,{kind:'selectHero',hero:'hero-1'});assert.equal(active(g).maxAp,18);assert.equal(g.heroes[0].ap,ap);g=apply(g,{kind:'endDay'});assert.equal(g.heroes[0].ap,14);assert.equal(g.heroes[1].ap,18);validateGame(g);
+}
+console.log('PASS12faction/equipment combinations with3retreats each, no stat accumulation or inactive army changes, talents and separate AP');
+
+// Enemy cells block passage and accept attacks from every neighboring direction.
+for(const size of [24,32] as const)for(const f of Object.keys(rosters)){
+ for(const [dx,dy]of [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]){
+  const g=createCampaign(122,f,size,1),target=10*size+10;g.rivals[0].capital=target;g.rivals[0].pos=target;
+  g.pos=(10+dy)*size+10+dx;active(g).pos=g.pos;active(g).ap=1;
+  const next=apply(g,{kind:'move',target});assert.ok(next.battle?.siege);assert.equal(next.pos,g.pos);assert.equal(active(next).ap,1);validateGame(next);
+ }
+ const g=createCampaign(123,f,size,1);g.rivals[0].pos=0;g.rivals[0].capital=0;g.rivals[0].army=[...g.rivals[0].army,g.rivals[0].army[0]].map((u,i)=>({...u,id:'siege-'+i}));g.rivals[0].siegeDays=3;g.rivals[0].cooldown=0;g.day=181*size/10+1;g.day=Math.ceil(g.day);if(g.day%2!==0)g.day++;g.heroes[0].army=[];g.army=[];
+ const lost=apply(g,{kind:'endDay'});assert.equal(lost.lost,true);validateGame(lost);assert.throws(()=>apply(lost,{kind:'move',target:1}));
+}
+console.log('PASS 64 adjacent city attacks across factions/world sizes, no entry/AP overspend, defeat is persistent and blocks further actions');
