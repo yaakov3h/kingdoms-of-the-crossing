@@ -1005,7 +1005,7 @@ export function createCampaign(seed: number, f = 'mars', size: 24 | 32 = 24, opp
     const reserved=[{id:2,resource:'gold' as const},{id:size*2+1,resource:'ore' as const},{id:size*3+3,resource:'crystal' as const}];
     for(const site of reserved){g.sites=g.sites.filter(s=>s.id!==site.id);g.sites.push({...site,type:'mine',done:false,owner:false,guard:site.resource==='crystal'?1:0});}
     const extra=Math.floor((size*size-324)/22);let random=rng(seed^9128);for(let i=0;i<extra;i++){const id=Math.floor(random()*size*size);if(g.sites.some(s=>s.id===id))continue;g.sites.push({id,type:i%3===0?'cache':i%3===1?'camp':'ruin',done:false,owner:false,guard:i%3===2?2:0});}
-    reveal(g,0,5);g.army=[0,1,2].map((k)=>campaignUnit(g,k,'unit-'+k));active(g).army=g.army;
+    reveal(g,0,7);g.army=[0,1,2].map((k)=>campaignUnit(g,k,'unit-'+k));active(g).army=g.army;
     for(const r of g.rivals)r.army=[0,1,2].map(k=>({...campaignUnit({...g,faction:r.faction},k,'rival-'+r.id+'-'+k),side:1}));
     active(g).ap = active(g).maxAp = campaignRules.dailyMovement;
     return g;
@@ -1033,6 +1033,6 @@ export function routeTo(g: Game, target: number): number[] {
 export function routeCost(g: Game, path: number[]): number { let from = g.pos, total = 0; for (const to of path) { total += movementCost(g, from, to); from = to; } return total; }
 
 export function campaignUnit(g:Game,kind:number,id:string):Unit{
- const d=rosters[g.faction][kind],h=g.heroes?.find(h=>h.id===g.activeHero),bonus=g.level*2+(h?.specialty==='warden'?2:0),max=d.hp+bonus;
+ const d=rosters[g.faction][kind],h=g.heroes?.find(h=>h.id===g.activeHero),bonus=g.level*2+(h?.specialty==='warden'?2+specialtyLevel(h)*2:0),max=d.hp+bonus;
  return {id,kind,name:d.name,faction:g.faction,side:0,pos:0,hp:max,max,damage:d.damage+Number((g.buildings[d.building]||0)>=2),range:d.range};
 }

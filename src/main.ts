@@ -16,11 +16,15 @@ const cameraViews = new Map<string, {
     x: number;
     y: number;
     zoom: number;
+    width?:number;
 }>();
 let scene: KingdomScene | null = null;
 let cityDetail: string | null = null;
 let selectedCell: number | null = null;
 let walking=false,walkToken=0;
+let travelHint='';
+let refreshWalkingMap:(()=>void)|null=null;
+let toastTimer:ReturnType<typeof setTimeout>|undefined;
 let saveStatus = 'לא נבחרה מערכה';
 let message = 'מסע בין ארבע ממלכות מקוריות. שמירה אוטומטית במכשיר ויצוא גיבוי.';
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => { const e = document.createElement(tag); if (text)
@@ -29,7 +33,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: 
 const button = (text: string, fn: () => void, cls = '') => { const b = el('button', text, cls); b.type = 'button'; b.onclick = fn; return b; };
 const paragraph = (s: string) => el('p', s);
 const g = () => current!.game;
-function say(s: string) { message = s; const n = document.querySelector('.notice'); if (n)
+function say(s: string) { message = s;if(app.classList.contains('map-mode')){document.querySelector('.map-toast')?.remove();const toast=el('div',s,'map-toast');toast.role='alert';app.append(toast);clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.remove(),4500);} const n = document.querySelector('.notice'); if (n)
     n.textContent = s; }
 function modal(text: string, fn: () => void) { const d = el('dialog'), title = el('h2', 'אישור פעולה'); d.append(title, paragraph(text), button('אישור', () => { d.close(); d.remove(); fn(); }), button('ביטול', () => { d.close(); d.remove(); })); d.oncancel = () => d.remove(); app.append(d); d.showModal(); }
 function persist(next: Game) { if (!current)
@@ -41,7 +45,7 @@ function persist(next: Game) { if (!current)
 catch (e) {
     current = candidate;
     saveStatus = 'השמירה נכשלה. אפשר לייצא לגיבוי';
-    message = saveStatus + ': ' + String(e);
+    message = saveStatus + ': ' + String(e);say(message);
 } }
 function action(a: Action) { if(walking)return;try {
     const before = g();
@@ -68,10 +72,12 @@ function page(title: string) { const p = el('section', undefined, 'page'), inner
 function unitCard(u: any) { const d = el('article', undefined, 'card'); d.append(img(art(u.faction || g().faction, u.kind)), el('b', u.name), paragraph(`${u.hp}/${u.max} חיים · ${u.damage} נזק · טווח ${u.range}`)); const a = ability(g(), u); if (a)
     d.append(paragraph(a.name + ': ' + a.detail)); return d; }
 function render() {
+    if(walking&&screen==='map'&&refreshWalkingMap&&scene?.scene.isActive()&&!scene.state.battle&&!g().battle){refreshWalkingMap();return;}
+    refreshWalkingMap=null;
     unmountPaired();
     if (renderedSaveId && scene?.cameras?.main && !scene.state?.battle) {
         const c = scene.cameras.main;
-        cameraViews.set(renderedSaveId, { x: c.worldView.centerX, y: c.worldView.centerY, zoom: c.zoom });
+        cameraViews.set(renderedSaveId, { x: c.worldView.centerX, y: c.worldView.centerY, zoom: c.zoom, width:c.width });
     }
     game?.destroy(true);
     game = null;
@@ -195,7 +201,7 @@ function setup(main: HTMLElement) { const { p, inner } = page('מערכה חדש
     current = s;
     screen = 'map';
     saveStatus = 'נשמר במכשיר';
-    message = 'המערכה התחילה. בחרו יעד במפה או השתמשו בחיצי התנועה.';
+    message = 'המערכה התחילה. הקישו על יעד גלוי כדי לצעוד אליו.';
     render();
 }
 catch (e) {
@@ -203,23 +209,23 @@ catch (e) {
 } })); main.append(p); }
 
 async function walkTo(target:number){
- if(walking||!current||g().battle||target===g().pos)return;
+ if(walking||!current||g().battle||target===g().pos)return;travelHint='';
  const path=routeTo(g(),target);if(!path.length){say('אין מסלול גלוי ליעד. חקרו את שולי האזור המוכר.');return;}
  const token=++walkToken;walking=true;selectedCell=target;
  try{for(const next of path){
   if(token!==walkToken||!current||g().battle||g().lost)break;
-  if(active(g()).ap<movementCost(g(),g().pos,next)){say('נקודות התנועה נגמרו. סיימו יום והקישו שוב על היעד להמשך.');break;}
+  const enemy=g().rivals.some(r=>!r.defeated&&(r.capital===next||r.pos===next&&r.army.some(u=>u.hp>0)));if(active(g()).ap<(enemy?1:movementCost(g(),g().pos,next))){travelHint='התנועה להיום הסתיימה. סיימו יום להמשך.';break;}
   await new Promise(r=>setTimeout(r,150));if(token!==walkToken)break;
   const before=g(),after=apply(before,{kind:'move',target:next});persist(after);followNextView=true;message=after.log[0];render();
   if(after.battle||after.pos===target)break;
- }}catch(e){say(String(e).replace('Error: ',''));}finally{if(token===walkToken){walking=false;if(current&&screen==='map')render();}}
+ }}catch(e){say(String(e).replace('Error: ',''));}finally{if(token===walkToken){walking=false;if(current&&screen==='map'){if(refreshWalkingMap&&!g().battle)refreshWalkingMap();else render();}}}
 }
 
 function world(main: HTMLElement) {
     const w = el('section', undefined, 'world'), canvas = el('div', undefined, 'canvas'), context = el('div', undefined, 'context'), tools = el('div', undefined, 'maptools');
-    canvas.ariaLabel = g().battle ? 'שדה הקרב' : 'מפת העולם';
+    w.classList.toggle('battle-view',!!g().battle);canvas.ariaLabel = g().battle ? 'שדה הקרב' : 'מפת העולם';
     const mini=el('canvas');mini.className='minimap';mini.width=mini.height=112;mini.ariaLabel='מפת מסע כללית';const mc=mini.getContext('2d')!,mw=worldSize(g()),px=112/mw;mc.fillStyle='#071b23';mc.fillRect(0,0,112,112);for(const n of g().seen){mc.fillStyle='#'+terrainCatalog[g().terrain[n]].color.toString(16).padStart(6,'0');mc.fillRect(n%mw*px,Math.floor(n/mw)*px,px+1,px+1);}for(const h of g().heroes){mc.fillStyle=h.id===g().activeHero?'#ffe3a1':'#77dcdf';mc.fillRect(h.pos%mw*px-1,Math.floor(h.pos/mw)*px-1,4,4);}mini.onclick=e=>{const r=mini.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*mw,y=(e.clientY-r.top)/r.height*mw;scene?.cameras.main.centerOn(x*80,y*80);};if(!g().battle)canvas.append(mini);
-    tools.append(button('⛶',()=>{if(document.fullscreenElement)void document.exitFullscreen();else void app.requestFullscreen?.();},'fullscreen-toggle'),button('+', () => scene?.zoom(.15)), button('−', () => scene?.zoom(-.15)), button('מרכוז', () => scene?.center()));
+    const full=button('⛶',()=>{if(document.fullscreenElement)void document.exitFullscreen();else if(app.requestFullscreen)void app.requestFullscreen().catch(()=>say('הדפדפן לא מאפשר מסך מלא. אפשר להוסיף למסך הבית.'));else say('הדפדפן לא מאפשר מסך מלא. אפשר להוסיף למסך הבית.');},'fullscreen-toggle');full.ariaLabel='מסך מלא';tools.append(full,button('+', () => scene?.zoom(.15)), button('−', () => scene?.zoom(-.15)), button('מרכוז', () => scene?.center()));
     canvas.append(tools);
     w.append(canvas, context);
     main.append(w);
@@ -237,9 +243,9 @@ function world(main: HTMLElement) {
             if (scene)
                 scene.selectedUnit = selection;
             context.append(paragraph(`${selected?.name || ''} · ${selected?.hp}/${selected?.max} חיים · נזק ${selected?.damage} · טווח ${selected?.range} · סבב ${b.round} · ${power ? 'בחרו אויב ליכולת' : 'אויבים באדום. בחרו משבצת סמוכה או אויב בטווח הכחול'}`));
-            for (const u of b.units.filter(u => u.side === 0 && u.hp > 0))
-                context.append(button(u.name, () => { selection = u.id; scene!.selectedUnit = u.id; scene!.draw(); contextDraw(); }, selection === u.id ? 'active' : ''));
-            if (selected && ability(g(), selected))
+            const picks=el('div',undefined,'battle-picks');for (const u of b.units.filter(u => u.side === 0 && u.hp > 0))
+                picks.append(button(u.name, () => { selection = u.id; scene!.selectedUnit = u.id; scene!.draw(); contextDraw(); }, selection === u.id ? 'active' : ''));
+            context.append(picks);if (selected && ability(g(), selected)&&!selected.used)
                 context.append(button(ability(g(), selected)!.name, () => { if (ability(g(), selected)!.range === 0) {
                     action({ kind: 'ability', unit: selected.id });
                 }
@@ -255,10 +261,12 @@ function world(main: HTMLElement) {
                 targetSelect.append(o);
             }
             targetLabel.append(targetSelect);
-            context.append(targetLabel, button('פקודה ליעד', () => scene?.choose(Number(targetSelect.value))));
+            const keyboard=el('details',undefined,'keyboard-target'),summary=el('summary','בחירת יעד במקלדת');keyboard.append(summary,targetLabel,button('פקודה ליעד',()=>scene?.choose(Number(targetSelect.value))));context.append(keyboard);
             context.append(button('קרב אוטומטי', () => modal('פתרון הקרב ישמור גם אבדות. להמשיך?', () => action({ kind: 'auto' }))), button('נסיגה', () => modal('לסגת עם השורדים לבירה?', () => action({ kind: 'retreat' }))));
             return;
         }
+        if(saveStatus.startsWith('השמירה נכשלה'))context.append(el('span',saveStatus,'travel-hint'));
+        if(travelHint)context.append(el('span',travelHint,'travel-hint'));
         context.append(paragraph(`${a.name} · ${a.ap}/${a.maxAp} נקודות תנועה · יום ${g().day}`));
         if(g().rulesRevision===2){const terrain=terrainCatalog[g().terrain[g().pos]];context.append(el('small',terrain.name+' · '+(g().roads?.includes(g().pos)?'דרך סלולה':'קרקע טבעית')));}
         const at = g().sites.find(s => s.id === g().pos);
@@ -286,7 +294,7 @@ function world(main: HTMLElement) {
     scene = new KingdomScene();
     scene.initialView = followNextView ? undefined : cameraViews.get(current!.id);
     followNextView = false;
-    scene.state = g();
+    scene.state = g();scene.route=selectedCell!==null?routeTo(g(),selectedCell):[];
     scene.choose = n => { if (g().battle) {
         const u = g().battle!.units.find(u => u.hp > 0 && u.pos === n);
         if (u?.side === 0) {
@@ -306,7 +314,7 @@ function world(main: HTMLElement) {
             action({ kind: 'move', target: n });
             return;
         }
-        if(walking)return;selectedCell = n;contextDraw();void walkTo(n);
+        if(walking)return;selectedCell=n;scene!.route=routeTo(g(),n);scene!.draw();contextDraw();void walkTo(n);
     } };
     contextDraw();
     game = new Phaser.Game({ type: Phaser.CANVAS, parent: canvas, backgroundColor: '#102b38', scale: { mode: Phaser.Scale.RESIZE, width: canvas.clientWidth, height: canvas.clientHeight }, scene: [scene], render: { antialias: true }, audio: { noAudio: true } });
@@ -314,6 +322,7 @@ function world(main: HTMLElement) {
     const observer = new ResizeObserver(() => { if (game && canvas.isConnected) {
         game.scale.resize(canvas.clientWidth, canvas.clientHeight);
     } });
+    refreshWalkingMap=()=>{if(!scene)return;scene.route=selectedCell!==null?routeTo(g(),selectedCell):[];scene.setState(g());if(followNextView){scene.center();followNextView=false;}contextDraw();for(const n of g().seen){mc.fillStyle='#'+terrainCatalog[g().terrain[n]].color.toString(16).padStart(6,'0');mc.fillRect(n%mw*px,Math.floor(n/mw)*px,px+1,px+1);}for(const h of g().heroes){mc.fillStyle=h.id===g().activeHero?'#ffe3a1':'#77dcdf';mc.fillRect(h.pos%mw*px-1,Math.floor(h.pos/mw)*px-1,4,4);}};
     observer.observe(canvas);
     setTimeout(() => scene?.events?.once('shutdown', () => observer.disconnect()), 0);
 }
