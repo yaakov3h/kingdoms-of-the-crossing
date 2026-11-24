@@ -1,0 +1,121 @@
+name: Sync art assets
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/sync-art.yml'
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch art from the live deployment and verify checksums
+        run: |
+          mkdir -p public/art
+          cat > art.sha256 <<'SUMS'
+          621522ce77d7f33dfc3ea375ef60e0848d97bec227435fbd745699ea2f950254  public/art/base.webp
+          93c7c8c7cd556b02a0b68567beb96be7e1a36be7d38a5d1bbb490f7ca03e7f5a  public/art/citadel.webp
+          68ec75a40176b9651b073e725945ee17d0865332732ef2a61ad58f1548b1204c  public/art/city-crystal.webp
+          82315d2d532eca91d3408beaec18cffb287748e2a48fa1409bf35c07fbbced55  public/art/city-grove.webp
+          353bd0316291fd6b0b63372b518134eebfa1924645dfbb5f5be83379644c3179  public/art/city-mars.webp
+          c0ed7d662007ed556c635b29693e1acfa5f5a6783db85722bf8f46f5f7c0cace  public/art/city-tide.webp
+          311102e5a25d79aa35c49c8ebac800008caf2f47493a285f38e1b833394b093e  public/art/crystal-army.webp
+          efe416478fa59510c52b50542917006aee470e87a363df4b6d8fab3b23811690  public/art/crystal.webp
+          52a5269f66c1318cd4b85a612457ce100788811daa1b80e5a1fec4213600c22b  public/art/factory.webp
+          cdc5fa9f0e92ab0adc86405086624bf167f940ecd8922299254c4d3b6bba8057  public/art/fog.webp
+          d2d1ac51606d29d8e54fe723a99a7aae77a8fde0feb47d89a243f1d76017c658  public/art/forest.webp
+          c7d2847bb014e118ad50e2b38a72351df3d7cdacf33c11d7087a0d50a4493627  public/art/gravity.webp
+          3f1ee35c5fb8af1394a8efb924c6c760948780a1e14a35bab94a382b6d08a20c  public/art/grove-scout.webp
+          2f7dc50c9a9ab935225374a57d0683142c2b49fa59913c7a459a9399f003748f  public/art/grove.webp
+          a5f1f05ff37909f1d8b78d74f8dd30cd4ab725d2ef0e06cfac8868623d2753c9  public/art/hatchery.webp
+          05f7ef956b107e1c438f7aa27e3ddc1bd7cdeb1fe44dd2949f5a3335fc2cc02f  public/art/hero-crystal.webp
+          1286a7935a2586a95325e27c69206eee7f41c9405d49bcaf7a2eea3b9c796593  public/art/hero-grove.webp
+          ab63bd88ec5f475472eab9255a0e72c7b080826dba7399f8e0933f0af4748ea4  public/art/hero-mars.webp
+          d3282b3dac219a1fc7f7a9d9d4d36455f70ca7090736bffeb10e132137203093  public/art/hero-tide.webp
+          0e556c79c3e6a048dd8e8a2ed21a140777fa5fd3014cb661b9fb8e63ea9bd7f0  public/art/land-forest.webp
+          304dfaf9678d7abd102647836be934384121562039b3f3d00b255e96d7a8009f  public/art/land-meadow.webp
+          a44a00c7afe3da93e1c5b04bd8f92b44609075cdb67f1071a104e189cd9a4da0  public/art/land-ridge.webp
+          9b9488224050a00f58ec27650cfa9e6dffec4322ec41d6c2b7edcbab35dd02bf  public/art/land-wetland.webp
+          ed7705dacc22718764a48e2694b5b1a8bbaf24a099a327f47d4a4d4834bbff81  public/art/machine.webp
+          5f26fdd3c7d1f1d350b5a6dc5e7b695bccbf0f7fa35547b46a75dad58824112f  public/art/manta.webp
+          a455acc5e9593240b4ac2b0ad6bfdc943d1ec346858e41b5fb9b6ede24e2ccad  public/art/map-hero-crystal.webp
+          be3f7b7e08ffec99aa0171cc511e038517c4c7138325d36a4a66fb8ea3a0faff  public/art/map-hero-grove.webp
+          db25b63d7fb7f416ee3dc357fa9e1435f9392f80c3eded97e88ff726454989bb  public/art/map-hero-mars.webp
+          c7b84fef1fa871323f051e1bea86dfabea521888fa45b5a836031cdc96c1e4dd  public/art/map-hero-tide.webp
+          4fab0fd2e3f930dbf9c8b52627266efcab107bec0871089ba193b410507f613a  public/art/mars-robot.webp
+          aa037c0fb3fcadd2854c6d53b68ab3475160d024fd4eb51c9fbbdabc6e18e532  public/art/mars-scout.webp
+          446d8def1cd1f0966d33467b3649fec525e1455d6433fb3a9054019d10e38b5f  public/art/mars.webp
+          70e52050be924a0549aa81b3afe0183a66bf79ec32fd93895f4f77aeadd285b8  public/art/meadow.webp
+          32b16a78be17452a6d4e8ccce00d8202df5cd60c1faaefa68da59bda4c8875f1  public/art/mine.webp
+          abebe014f734203a7868b5fb38475df8fb07b085791aa99832e258e364b9bfe6  public/art/moth.webp
+          22949ae60f05a0ffbe9d137d2f7eb5075539731b090baff28cbc059287cd6329  public/art/pyro.webp
+          cc2d7fecaa073a1fd04f2439d59c5ffae310cb883e84aea4c2dec05c9aab4856  public/art/quartz.webp
+          707f38b4e8886de8b8be1f8782f66749417ef0f9d1f96ea4aaf0a8a572eb1696  public/art/ridge.webp
+          9ac3855c297c7e54884e4b8fd0acbf424aa1a2eaab08819e5c16b850564eee95  public/art/ruin.webp
+          f699f458db45e4faf9859262fd524e9656a605d7ed2c1024ac02248e202d792f  public/art/sanctuary.webp
+          e6820f3656724df6904c38bb70a7bd72c5179299a16894cbd5ad883d34aecffc  public/art/site-beacon.webp
+          a0a8c29dc173eb292e357e7e52e6a25e9523f47a42bd2990e62ba76737c5eccc  public/art/site-camp.webp
+          1584ba051ad96c4e847c5f93a36b3065908f51ad2b0e76a96ce4b95c0308364a  public/art/site-crystal-city.webp
+          8498815c48354957d7bb29af4c83c296becf8e81e4a395e1e2f8a0600ad8d261  public/art/site-crystal.webp
+          1ed4d682712d7239df5711c59bb32f9aadf29773a81973183418b550c274a3f6  public/art/site-gold.webp
+          5ffcd2ea5863668cf0d7782bf0d06489a494cbd811133799597751e76ea127d4  public/art/site-grove.webp
+          8770e2b8ad4c6d8bbf1e2c7acee16fc8f333412e310b15edf613102abaeff9b1  public/art/site-mars.webp
+          f9b9c366568000debd7a633ec42065339f196f41166e47a132410a046c1e591d  public/art/site-ore.webp
+          585a09e0606c0fbb7b2b248aebd3063b3ad32afe7f9d367e6e0596aea7c3db66  public/art/site-ruin.webp
+          0907ffac9ec9f274140a1382aedbe9b85e239b47a38426db6a73f40556c0d493  public/art/site-spring.webp
+          18c562b8e145df07d505396eb5be7e1205246b9102e50105270bb6af4acce9d4  public/art/site-tide.webp
+          19e0c338cd3bb44856419ea8b9e5371d632616a02b3a9f367c90cd2c435c1891  public/art/site-treasure.webp
+          258ae80d896cd967e3ef4af1f3f6b3b8ad635c748a6389f8b3129204cd4d78e4  public/art/tide-scout.webp
+          a963e3212aa6a1fb969beda0982ba9b4ac65fcf9de35677042d9d0bbd9598121  public/art/tide.webp
+          c41eeba2190afa399dcc2cb05076e94538b72262a421c8818a6de95c2ae40ce8  public/art/troop-crystal-0.webp
+          20f0036982ae33cfc1b701a16c7fff7220871709bb7fd02a25ad4607c55e8c00  public/art/troop-crystal-1.webp
+          3ade3a08a4e1fe34555f1c9cd413ef44cb42aaacf516709538f7df4e7c9cee30  public/art/troop-crystal-2.webp
+          fcf89a39b41b3fbac509feb25b18d3f177578cd2fecdb613b7220f389f7e2ade  public/art/troop-crystal-3.webp
+          1010d9fa00001c9f260efa050a6f010f31ff3f4e0ac1b0f0f717253743ba0222  public/art/troop-crystal-4.webp
+          386c3a9f499139a6fb609a5078f624f693ddb89669bbe7075c3dc300671d5b81  public/art/troop-crystal-5.webp
+          abb648cb1e9d600447ae8ade793684fa6e518dd3e2f3e5b0e0a420b97e81c684  public/art/troop-crystal-6.webp
+          c02af4073b2d3ffaa87bc87c2a00d4b3a4ced89f54009bb3979342c7949f8f72  public/art/troop-crystal-7.webp
+          a995230a16e7c53add148e2181d0db5d476b6f80411bd93bb94318daaa7ae1b4  public/art/troop-grove-0.webp
+          c1816aecbca21c57944b32fe4036662c7f100dda0f1099c1f1083bcff2a95c14  public/art/troop-grove-1.webp
+          3edd40a8024e4a9bbe22b7f5a8e5d63d71855846d721ef4cec0e0e043fb68f32  public/art/troop-grove-2.webp
+          77da2c66d6b5e20848e0e5de8f30d8288619954db794940ba3972dc31ec0d7fb  public/art/troop-grove-3.webp
+          b2777d33f1f761870f67a0f6d743f3efc741e31b680bd896bd2d68d83afe1319  public/art/troop-grove-4.webp
+          59d2c95c14f76d4919a72d3310d0ad44687f918c27d4013fd2c4de9935165297  public/art/troop-grove-5.webp
+          a97aa5539e42eae6522b1621afcfc79d72d856ed2331e42d7983f6f9438c1cd4  public/art/troop-grove-6.webp
+          0e3249f6787f49528363ead377ea340f994f97a227bb54cde3320edd7364036d  public/art/troop-grove-7.webp
+          5f525271647dd5d4e6a57408f2bdaf6fbf446e51d8fc31fea38aba78d5cc08aa  public/art/troop-mars-0.webp
+          f53e68f8d34dbcbb4b82fbc17ba8ff0896944962969c63c3ddc2d7751b478f38  public/art/troop-mars-1.webp
+          17568b75074ba204d16bee7d2928fc6ffb0a33a4c48a90675a71fbe5d7594b1d  public/art/troop-mars-2.webp
+          6a6db8932cbdefa2dfbe60009dcac030068e5f5f43ff14684b32b65acfc7068a  public/art/troop-mars-3.webp
+          5b219ce815668a2320cb7ab60dd901f6ddc3fdcb5f0f36ca11f5cc0a9f538697  public/art/troop-mars-4.webp
+          8a464da158c6e69e01dfabedbb6891c326c1b287f8db960320cb2e6bde82ade9  public/art/troop-mars-5.webp
+          8df8b414927de40b51160250efc8572f99c7cc2f6c3ed0396d6d87334a5ae072  public/art/troop-mars-6.webp
+          c664f69b357f1ea8df170f405c408e70694e07cc7e0645c9ac4a2844fc008ce4  public/art/troop-mars-7.webp
+          671db360973115ca9f713936ddd3a1d18a52856c48b477757c4ae35160b37cf6  public/art/troop-tide-0.webp
+          ca723b1d4534a8f8513f834a2436462b9f9f5b1eabf5b574f2079a002216cfc6  public/art/troop-tide-1.webp
+          e6d32cfd9524e161aedc0512272fff5800008f82c1455e458e4c59c42c689b05  public/art/troop-tide-2.webp
+          09650f0a9b48da043c2839cce96a8e8de894123998cd537c1cf5aee810c718eb  public/art/troop-tide-3.webp
+          aac45ec03e25c1e8e4338a2f7b8a6c67c12a4b3349b9b209c5d55325a3ed59aa  public/art/troop-tide-4.webp
+          cbb9e7ec01ff2133f8e1bd8ec8434b8788086c632b712740a60481ec39ee37e2  public/art/troop-tide-5.webp
+          b5fd7f8a439abb8243b2395767c490b25f43892c1ff4633f559680ed045b2796  public/art/troop-tide-6.webp
+          c328ae4b7d3ca75ea0cbea8fb55dfd0e919590ba8b966dfd0420de37eb861b24  public/art/troop-tide-7.webp
+          cd0931e8b3f33d5b293d0acce0001bfb07f4c866674eddba922e3ddd79208272  public/art/wetland.webp
+          SUMS
+          sed -i 's/^ *//' art.sha256
+          awk '{print $2}' art.sha256 | while read p; do
+            f=$(basename "$p")
+            if [ ! -f "$p" ]; then
+              curl -fsSL -A 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36' "https://kingdoms-of-the-crossing.pages.dev/art/$f" -o "$p"
+            fi
+          done
+          sha256sum -c art.sha256
+          rm art.sha256
+      - name: Commit art
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add public/art
+          git commit -m "Add art assets (verified by SHA-256 against audited build)" || echo "nothing to commit"
+          git push
