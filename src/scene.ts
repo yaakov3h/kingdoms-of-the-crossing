@@ -19,7 +19,7 @@ export class KingdomScene extends Phaser.Scene {
     moved = false;
     pinch = 0;
     constructor() { super('kingdom'); }
-    preload() { for (const k of ['land-meadow','land-forest','land-ridge','land-wetland','meadow', 'forest', 'ridge', 'wetland', 'mine', 'base', 'crystal', 'ruin', 'factory', 'sanctuary', 'gravity', 'hatchery', 'hero-mars', 'hero-crystal', 'hero-tide', 'hero-grove', 'mars', 'mars-scout', 'mars-robot', 'crystal-army', 'tide', 'tide-scout', 'grove', 'grove-scout', 'machine', 'moth', 'manta', 'quartz', 'pyro'])
+    preload() { for(const f of ['mars','crystal','grove','tide'])this.load.image('map-hero-'+f,'/art/map-hero-'+f+'.webp');for(const f of ['mars','crystal','grove','tide'])for(let k=0;k<8;k++)this.load.image('troop-'+f+'-'+k,'/art/troop-'+f+'-'+k+'.webp');for (const k of ['land-meadow','land-forest','land-ridge','land-wetland','meadow', 'forest', 'ridge', 'wetland', 'mine', 'base', 'crystal', 'ruin', 'factory', 'sanctuary', 'gravity', 'hatchery', 'hero-mars', 'hero-crystal', 'hero-tide', 'hero-grove', 'mars', 'mars-scout', 'mars-robot', 'crystal-army', 'tide', 'tide-scout', 'grove', 'grove-scout', 'machine', 'moth', 'manta', 'quartz', 'pyro'])
         this.load.image(k, '/art/' + k + '.webp'); }
     create() { this.input.addPointer(1); this.input.on('pointerdown', (p: Phaser.Input.Pointer) => { this.moved = false; this.boardPressed = this.onCanvas(p); }); this.input.on('pointermove', (p: Phaser.Input.Pointer) => { if (!p.isDown || this.state?.battle)
         return; const a = this.input.pointer1, b = this.input.pointer2; if (a.isDown && b.isDown) {
@@ -114,9 +114,8 @@ export class KingdomScene extends Phaser.Scene {
         for (let n = 0; n < g.terrain.length; n++) {
             const x = n % w * 80, y = Math.floor(n / w) * 80, seen = g.seen.includes(n);
             if (!seen) {
-                const tile = this.add.rectangle(x + 40, y + 40, 80, 80, 0x0c222b);
-                const edge=[n-1,n+1,n-w,n+w].some(k=>g.seen.includes(k));
-                if(edge)add(this.add.rectangle(x+40,y+40,80,80,0x1d3840,.3));
+                const tile = this.add.rectangle(x + 40, y + 40, 82, 82, 0x0c222b);
+                
                 add(tile);
                 continue;
             }
@@ -131,18 +130,18 @@ export class KingdomScene extends Phaser.Scene {
             }
             if (r) {
                 if (r.pos === n)
-                    add(this.add.image(x + 40, y + 34, 'hero-' + r.faction).setDisplaySize(50, 62));
+                    add(this.add.image(x + 40, y + 34, 'map-hero-' + r.faction).setDisplaySize(66, 71));
                 add(this.add.rectangle(x + 40, y + 70, 76, 18, this.ally ? 0x285a4a : 0x813a2e, .9));
                 add(this.add.text(x + 40, y + 70, this.actorLabel, { fontSize: '15px', color: '#ffe1c5' }).setOrigin(.5));
             }
             if (g.heroes.some(h => h.id !== g.activeHero && h.pos === n)) {
-                add(this.add.image(x + 40, y + 35, 'hero-' + g.faction).setDisplaySize(48, 59));
+                add(this.add.image(x + 40, y + 38, 'map-hero-' + g.faction).setDisplaySize(66, 71));
                 add(this.add.rectangle(x + 40, y + 70, 72, 16, 0x234f58, .95));
                 add(this.add.text(x + 40, y + 70, '+', { fontSize: '14px', color: '#b8f1f0' }).setOrigin(.5));
             }
             if(this.route.includes(n)) { add(this.add.circle(x+40,y+60,5,0xffe0a0,.9)); }
             if (n === g.pos) {
-                add(this.add.image(x + 40, y + 35, 'hero-' + g.faction).setDisplaySize(56, 69));
+                add(this.add.image(x + 40, y + 38, 'map-hero-' + g.faction).setDisplaySize(74, 79));
                 add(this.add.ellipse(x+40,y+65,58,20,0xeed796,.22).setStrokeStyle(2,0xf1d68b));
             }
         }

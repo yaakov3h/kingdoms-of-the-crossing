@@ -20,6 +20,7 @@ const cameraViews = new Map<string, {
 let scene: KingdomScene | null = null;
 let cityDetail: string | null = null;
 let selectedCell: number | null = null;
+let walking=false,walkToken=0;
 let saveStatus = 'לא נבחרה מערכה';
 let message = 'מסע בין ארבע ממלכות מקוריות. שמירה אוטומטית במכשיר ויצוא גיבוי.';
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => { const e = document.createElement(tag); if (text)
@@ -42,7 +43,7 @@ catch (e) {
     saveStatus = 'השמירה נכשלה. אפשר לייצא לגיבוי';
     message = saveStatus + ': ' + String(e);
 } }
-function action(a: Action) { try {
+function action(a: Action) { if(walking)return;try {
     const before = g();
     const n = apply(before, a);
     if (n.pos !== before.pos || n.activeHero !== before.activeHero || !!n.battle !== !!before.battle)
@@ -56,7 +57,7 @@ function action(a: Action) { try {
 catch (e) {
     say(String(e).replace('Error: ', ''));
 } }
-function navigate(s: string) { if (s === 'city')
+function navigate(s: string) { walkToken++;walking=false;if (s === 'city')
     cityDetail = null; if (current?.game.battle && s !== 'home' && s !== 'map') {
     say('סיימו את הקרב או חזרו אליו דרך המפה');
     return;
@@ -75,7 +76,7 @@ function render() {
     game?.destroy(true);
     game = null;
     scene = null;
-    app.replaceChildren();
+    app.replaceChildren();app.classList.toggle('map-mode',!!current&&screen==='map'&&!g().battle);
     const header = el('header'), brand = el('div');
     brand.append(el('h1', 'ממלכות המעבר'), el('p', screen === 'paired' ? 'פיתוח עצמאי · חדר זוגי מקומי' : 'אסטרטגיה ומסעות · גרסת סולו בבנייה'));
     header.append(brand);
@@ -200,11 +201,25 @@ function setup(main: HTMLElement) { const { p, inner } = page('מערכה חדש
 catch (e) {
     say('לא ניתן ליצור שמירה: ' + String(e));
 } })); main.append(p); }
+
+async function walkTo(target:number){
+ if(walking||!current||g().battle||target===g().pos)return;
+ const path=routeTo(g(),target);if(!path.length){say('אין מסלול גלוי ליעד. חקרו את שולי האזור המוכר.');return;}
+ const token=++walkToken;walking=true;selectedCell=target;
+ try{for(const next of path){
+  if(token!==walkToken||!current||g().battle||g().lost)break;
+  if(active(g()).ap<movementCost(g(),g().pos,next)){say('נקודות התנועה נגמרו. סיימו יום והקישו שוב על היעד להמשך.');break;}
+  await new Promise(r=>setTimeout(r,150));if(token!==walkToken)break;
+  const before=g(),after=apply(before,{kind:'move',target:next});persist(after);followNextView=true;message=after.log[0];render();
+  if(after.battle||after.pos===target)break;
+ }}catch(e){say(String(e).replace('Error: ',''));}finally{if(token===walkToken){walking=false;if(current&&screen==='map')render();}}
+}
+
 function world(main: HTMLElement) {
     const w = el('section', undefined, 'world'), canvas = el('div', undefined, 'canvas'), context = el('div', undefined, 'context'), tools = el('div', undefined, 'maptools');
     canvas.ariaLabel = g().battle ? 'שדה הקרב' : 'מפת העולם';
     const mini=el('canvas');mini.className='minimap';mini.width=mini.height=112;mini.ariaLabel='מפת מסע כללית';const mc=mini.getContext('2d')!,mw=worldSize(g()),px=112/mw;mc.fillStyle='#071b23';mc.fillRect(0,0,112,112);for(const n of g().seen){mc.fillStyle='#'+terrainCatalog[g().terrain[n]].color.toString(16).padStart(6,'0');mc.fillRect(n%mw*px,Math.floor(n/mw)*px,px+1,px+1);}for(const h of g().heroes){mc.fillStyle=h.id===g().activeHero?'#ffe3a1':'#77dcdf';mc.fillRect(h.pos%mw*px-1,Math.floor(h.pos/mw)*px-1,4,4);}mini.onclick=e=>{const r=mini.getBoundingClientRect(),x=(e.clientX-r.left)/r.width*mw,y=(e.clientY-r.top)/r.height*mw;scene?.cameras.main.centerOn(x*80,y*80);};if(!g().battle)canvas.append(mini);
-    tools.append(button('+', () => scene?.zoom(.15)), button('−', () => scene?.zoom(-.15)), button('מרכוז', () => scene?.center()));
+    tools.append(button('⛶',()=>{if(document.fullscreenElement)void document.exitFullscreen();else void app.requestFullscreen?.();},'fullscreen-toggle'),button('+', () => scene?.zoom(.15)), button('−', () => scene?.zoom(-.15)), button('מרכוז', () => scene?.center()));
     canvas.append(tools);
     w.append(canvas, context);
     main.append(w);
@@ -245,11 +260,6 @@ function world(main: HTMLElement) {
             return;
         }
         context.append(paragraph(`${a.name} · ${a.ap}/${a.maxAp} נקודות תנועה · יום ${g().day}`));
-        for (const [s, t] of [[-worldSize(g())-1,'↖'],[-worldSize(g()), '↑'],[-worldSize(g())+1,'↗'],[-1,'←'],[1, '→'],[worldSize(g())-1,'↙'],[worldSize(g()), '↓'],[worldSize(g())+1,'↘']] as [
-            number,
-            string
-        ][])
-            context.append(button(t, () => {const target=g().pos+s;if(Math.max(Math.abs(target%worldSize(g())-g().pos%worldSize(g())),Math.abs(Math.floor(target/worldSize(g()))-Math.floor(g().pos/worldSize(g()))))>1){say('גבול העולם');return;}action({ kind: 'move', target });}));
         if(g().rulesRevision===2){const terrain=terrainCatalog[g().terrain[g().pos]];context.append(el('small',terrain.name+' · '+(g().roads?.includes(g().pos)?'דרך סלולה':'קרקע טבעית')));}
         const at = g().sites.find(s => s.id === g().pos);
         if (at) {
@@ -260,7 +270,7 @@ function world(main: HTMLElement) {
                 context.append(button('כניסה לעיר', () => navigate('city')));
             if (at.owner && specialSites[at.type]) {
                 const d = specialSites[at.type];
-                context.append(button('גיוס ' + d.unit, () => action({ kind: 'siteRecruit', unitKind: d.kind })));
+                context.append(button('גיוס ' + (g().rulesRevision===2?rosters[g().faction][d.kind].name:d.unit), () => action({ kind: 'siteRecruit', unitKind: d.kind })));
             }
         }
         if (selectedCell !== null && selectedCell !== g().pos) {
@@ -269,8 +279,7 @@ function world(main: HTMLElement) {
             const near = g().rivals.find(r => !r.defeated && (r.capital === target || r.pos === target));
             if (near)
                 context.append(button(near.capital === target ? 'הסתערות על העיר' : 'תקיפת הצבא', () => action({ kind: near.capital === target ? 'assault' : 'engage', target: near.capital === target ? target : near.id })));
-            if (path.length)
-                context.append(button('צעידה ליעד ·'+movementCost(g(),g().pos,path[0])+'נק׳', () => action({ kind: 'move', target: path[0] }),'path-command'));
+            if(path.length)context.append(el('small',walking?'צועד במסלול שנבחר':'הקישו על היעד במפה כדי להמשיך'));
         }
     }
     renderedSaveId = current!.id;
@@ -291,14 +300,13 @@ function world(main: HTMLElement) {
         power = false;
     }
     else {
-        const ownHero=g().heroes.find(h=>h.id!==g().activeHero&&h.pos===n);if(ownHero){action({kind:'selectHero',hero:ownHero.id});return;}
+        if(walking)return;const ownHero=g().heroes.find(h=>h.id!==g().activeHero&&h.pos===n);if(ownHero){action({kind:'selectHero',hero:ownHero.id});return;}
             const rival = g().rivals.find(r => !r.defeated && (r.pos === n || r.capital === n));
         if (rival && Math.max(Math.abs(n % worldSize(g()) - g().pos % worldSize(g())), Math.abs(Math.floor(n / worldSize(g())) - Math.floor(g().pos / worldSize(g())))) <= 1) {
             action({ kind: 'move', target: n });
             return;
         }
-        selectedCell = n;
-        contextDraw();
+        if(walking)return;selectedCell = n;contextDraw();void walkTo(n);
     } };
     contextDraw();
     game = new Phaser.Game({ type: Phaser.CANVAS, parent: canvas, backgroundColor: '#102b38', scale: { mode: Phaser.Scale.RESIZE, width: canvas.clientWidth, height: canvas.clientHeight }, scene: [scene], render: { antialias: true }, audio: { noAudio: true } });
@@ -388,11 +396,11 @@ function guide(main:HTMLElement){
  const {p,inner}=page('ספר המסע');
  inner.append(el('h3','היעד שלכם'),paragraph('בחרו ברית, חשפו עולם אקראי, כבשו מקורות הכנסה ופתחו עיר וצבא. הכניעו את בירות המחשב כדי לנצח. אפשר לסגת, להתחזק ולחזור. כל עולם חדש הוא שמירה נפרדת.'));
  const grid=el('div',undefined,'grid');
- for(const f of factions){const card=el('article',undefined,'card');card.append(img('hero-'+f.id),el('h3',f.name),paragraph(f.theme),paragraph(f.bonus),paragraph(f.units.join(' · ')));grid.append(card);}inner.append(grid);
+ for(const f of factions){const card=el('article',undefined,'card');card.append(img('hero-'+f.id),el('h3',f.name),paragraph(f.theme),paragraph(f.bonus),paragraph(rosters[f.id].map(u=>u.name).join(' · ')));grid.append(card);}inner.append(grid);
  inner.append(el('h3','תנועה וימים'),paragraph('במערכות החדשות לכל גיבור14נקודות תנועה ביום. סיירים מתמחים נעים מהר יותר. הליכה אפשרית בשמונה כיוונים. כביש חוסך מאמץ ואלכסון מוסיף נקודה. סיום יום מחדש תנועה, גובה הכנסה ומפעיל את ממלכות המחשב. אין שעון רץ בזמן שאתם לא משחקים.'));
  for(const t of terrainCatalog)inner.append(paragraph(t.name+': '+t.cost+' נקודות לפני הנחות. '+t.detail));
  inner.append(el('h3','משאבים'));for(const r of campaignRules.resources)inner.append(paragraph(r.name+': '+r.purpose));
- inner.append(el('h3','בניית עיר'));for(const d of Object.values(buildings))inner.append(paragraph(d.name+': '+d.unlock.join(' / ')));
+ inner.append(el('h3','בניית עיר'));inner.append(paragraph('בונים מבנה אחד בכל יום. חצר האימונים נדרשת לסדנה ולגן המרפא. שניהם נדרשים למצפה. שדרוג מבנה לרמה2 דורש מרכז עיר ברמה1. בכל סיעה שמונה יחידות שונות, מלאי הגיוס מתחדש בתחילת שבוע.'));
  inner.append(el('h3','גיבורים וצבאות'),paragraph('כל גיבור מוביל צבא עצמאי, עד שש יחידות. העברה דורשת מפגש באותו תא. ניסיון מתקבל בניצחונות ובחקירת אתרים, שיפור דרגה וציוד משפיעים על הקרבות הבאים. התקפה על צבא או עיר אפשרית מכל שמונה המשבצות הסמוכות.'));
  inner.append(el('h3','שמירה ופרטיות'),paragraph('השמירה כאן בדפדפן ובמכשיר, לא ברשת ולא בריפו. מחיקת נתוני האתר עלולה למחוק אותה. יצאו קובץ גיבוי מהתפריט. יבוא מוסיף שמירה ואינו דורס קיימות. חיבור השרת והמשחק עם שחקנים אחרים נשמרים לשלב הבא.'));
  main.append(p);
@@ -400,18 +408,20 @@ function guide(main:HTMLElement){
 
 function campaignCity(main:HTMLElement){
  const {p,inner}=page(townNames[g().faction].center),town=g(),names=townNames[town.faction],atHome=town.pos===0;
- const image=img('city-'+town.faction);image.className='heroart';inner.append(image,paragraph('שבוע '+(Math.floor((town.day-1)/7)+1)+' · יום '+((town.day-1)%7+1)+' · '+(town.builtDay===town.day?'הבנייה להיום הושלמה':'אפשר להקים או לשדרג מבנה אחד היום')));
+ const panorama=el('div',undefined,'panorama faction-'+town.faction),image=img('city-'+town.faction);image.alt='תוכנית העיר '+names.center;panorama.append(image);
+ for(const key of ['center',...Object.keys(buildings)]){const hit=button('',()=>document.getElementById('city-building-'+key)?.scrollIntoView({behavior:'smooth',block:'start'}),'cityhit '+(key==='center'?'palace':'hit-'+key));hit.ariaLabel='פרטי '+names[key];hit.append(el('span',names[key]+' · '+(key==='center'?town.level:town.buildings[key])));panorama.append(hit);}
+ inner.append(panorama,paragraph('שבוע '+(Math.floor((town.day-1)/7)+1)+' · יום '+((town.day-1)%7+1)+' · '+(town.builtDay===town.day?'הבנייה להיום הושלמה':'אפשר להקים או לשדרג מבנה אחד היום')));
  inner.append(paragraph(atHome?'הגיבור בבירה. אפשר לבנות, לגייס ולהצטייד.':'החזירו גיבור לבירה לבנייה וגיוס. אפשר לעיין בתוכנית העיר גם מרחוק.'));
- const grid=el('div',undefined,'grid'),center=el('article',undefined,'card');center.append(el('h3',names.center+' · '+town.level+'/2'),paragraph('כל רמה מחזקת יחידות וגיוסים, ומאפשרת התקדמות עירונית.'));
+ const grid=el('div',undefined,'grid town-buildings'),center=el('article',undefined,'card');center.id='city-building-center';center.append(el('h3',names.center+' · '+town.level+'/2'),paragraph('כל רמה מחזקת יחידות וגיוסים, ומאפשרת התקדמות עירונית.'));
  if(town.level<2){const b=button('שדרוג מרכז ·10זהב5עפרות2גבישים',()=>action({kind:'upgrade'}));b.disabled=!atHome||town.builtDay===town.day;center.append(b);}center.append(button('ריפוי הצבא ·4זהב',()=>action({kind:'heal'})),button('גיבור נוסף ·18זהב4עפרות2גבישים',()=>action({kind:'hireHero'})));grid.append(center);
  for(const [key,d]of Object.entries(buildings)){
-  const lv=town.buildings[key],card=el('article',undefined,'card');card.append(img(d.art),el('h3',names[key]+' · '+lv+'/2'));
+  const lv=town.buildings[key],card=el('article',undefined,'card');card.id='city-building-'+key;card.append(img(d.art),el('h3',names[key]+' · '+lv+'/2'));
   const req=buildingPrerequisites[key],missing=req.filter(r=>town.buildings[r.key]<r.level);
   card.append(paragraph(req.length?'דורש: '+req.map(r=>names[r.key]+' '+r.level).join(' · '):'מבנה יסוד'),paragraph('פותח: '+rosters[town.faction].filter(u=>u.building===key).map(u=>u.name).join(' · ')));
-  if(lv<2){const cost=d.cost[lv],b=button('בנייה ·'+cost[0]+'זהב '+cost[1]+'עפרות '+cost[2]+'גבישים',()=>action({kind:'build',unit:key}));b.disabled=!atHome||town.builtDay===town.day||missing.length>0||(lv===1&&town.level<1);card.append(b);}grid.append(card);
+  if(lv<2){const cost=d.cost[lv],b=button('בנייה ·'+cost[0]+' זהב · '+cost[1]+' עפרות · '+cost[2]+' גבישים',()=>action({kind:'build',unit:key}));b.disabled=!atHome||town.builtDay===town.day||missing.length>0||(lv===1&&town.level<1);card.append(b);}grid.append(card);
  }inner.append(grid,el('h3','חצרות הגיוס'),paragraph('תגבורת בתחילת כל שבוע, ללא גיוס אינסופי. הצבא מכיל עד שש יחידות נפרדות.'));
  const units=el('div',undefined,'units');for(const [kind,d]of rosters[town.faction].entries()){
-  const card=el('article',undefined,'card'),unlocked=d.building==='center'||town.buildings[d.building]>=d.tier;card.append(img(art(town.faction,kind)),el('h3',d.name),paragraph(d.role+' · '+d.hp+' חיים · '+d.damage+' נזק · טווח '+d.range),paragraph('מלאי '+(town.recruitmentStock?.[kind]||0)+' · צמיחה שבועית '+d.growth),paragraph(d.gold+'זהב '+d.ore+'עפרות '+d.crystal+'גבישים'));
+  const card=el('article',undefined,'card'),unlocked=d.building==='center'||town.buildings[d.building]>=d.tier;card.append(img(art(town.faction,kind)),el('h3',d.name),paragraph(d.role+' · '+d.hp+' חיים · '+d.damage+' נזק · טווח '+d.range),paragraph('מלאי '+(town.recruitmentStock?.[kind]||0)+' · צמיחה שבועית '+d.growth),paragraph(d.gold+' זהב · '+d.ore+' עפרות · '+d.crystal+' גבישים'));
   const b=button(unlocked?'גיוס '+d.name:'נדרש '+names[d.building]+' '+d.tier,()=>action({kind:'recruit',unitKind:kind}));b.disabled=!atHome||!unlocked||!town.recruitmentStock?.[kind];card.append(b);units.append(card);
  }inner.append(units);main.append(p);
 }

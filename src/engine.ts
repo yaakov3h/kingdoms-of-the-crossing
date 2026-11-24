@@ -450,6 +450,7 @@ function combat(g: Game, a: Action): Game {
     }
     return g;
 }
+function rivalUnit(g:Game,r:Rival,k:number,id:string){return g.rulesRevision===2?campaignUnit({...g,faction:r.faction,level:r.level},k,id):recruitUnit({faction:r.faction,level:r.level},k,id);}
 function rivalBattle(g: Game, r: Rival, siege: boolean) {
     const own = g.army.filter(u => u.hp > 0);
     if (!own.length) {
@@ -458,7 +459,7 @@ function rivalBattle(g: Game, r: Rival, siege: boolean) {
     }
     let foes = (siege && r.pos !== r.capital ? [] : r.army).filter(u => u.hp > 0).map(u => ({ ...u }));
     if (siege) {
-        const guard = [0, 1].map((k, i) => ({ ...recruitUnit({ faction: r.faction, level: r.level }, k, 'garrison-' + r.id + '-' + i), side: 1 }));
+        const guard = [0, 1].map((k, i) => ({ ...rivalUnit(g,r,k,'garrison-' + r.id + '-' + i), side: 1 }));
         foes = [...foes, ...guard].slice(0, 6);
     }
     if (!foes.length)
@@ -492,7 +493,7 @@ function worldDay(g: Game) {
             if (r.army.length < 6 && r.gold >= 8 && r.ore >= 2) {
                 r.gold -= 8;
                 r.ore -= 2;
-                r.army.push({ ...recruitUnit({ faction: r.faction, level: r.level }, r.turns % 3, 'rival-' + r.id + '-recruit-' + r.turns), side: 1 });
+                r.army.push({ ...rivalUnit(g,r,g.rulesRevision===2&&r.level>0&&r.turns>20?3+r.turns%5:r.turns%3,'rival-' + r.id + '-recruit-' + r.turns), side: 1 });
             }
         }
     }
@@ -862,7 +863,8 @@ function actCore(old: Game, a: Action): Game {
         s.stock--;
         const max = d.hp + g.level * 2 + (h.specialty === 'warden' ? 2 + specialtyLevel(h) * 2 : 0);
         g.army = g.army.filter(u => u.hp > 0);
-        g.army.push({ id: 'unit-' + g.serial++, kind: d.kind, name: d.unit, side: 0, pos: 0, hp: max, max, range: d.range, damage: d.damage });
+        const recruited=g.rulesRevision===2?campaignUnit(g,d.kind,'unit-'+g.serial++):{ id: 'unit-' + g.serial++, kind: d.kind, name: d.unit, side: 0, pos: 0, hp: max, max, range: d.range, damage: d.damage };
+        g.army.push(recruited);
         advance(g);
         sync(g);
         addlog(g, 'גויסה ' + d.unit + ' לצבא של ' + h.name + '.');
@@ -948,11 +950,18 @@ export function apply(old: Game, a: Action): Game { const ids = new Set(old.hero
     }
     sync(g);
 } return g; }
-function hit(g: Game, source: Unit, target: Unit, raw: number) { let reduction = target.side === 0 ? (active(g).defense || 0) + (active(g).equipment === 'shield' ? 1 : 0) : 0; if (target.kind === 7) {
+function hit(g: Game, source: Unit, target: Unit, raw: number) { let reduction = target.side === 0 ? (active(g).defense || 0) + (active(g).equipment === 'shield' ? 1 : 0) : 0; if (target.kind === 7 && (g.rulesRevision!==2 || (target.faction||g.faction)==='crystal')) {
     reduction += 2;
     target.charge = Math.min(6, (target.charge || 0) + 2);
 } const damage = Math.max(1, raw - reduction); target.hp = Math.max(0, target.hp - damage); }
-export function ability(g: Game, u: Unit) { if (u.kind === 7)
+export function ability(g: Game, u: Unit) { if(g.rulesRevision===2){const f=u.faction||g.faction;
+ if(u.kind===0)return{name:'פריצת סייר',detail:'פגיעה מדויקת של נזק רגיל ועוד 2, בטווח2, פעם בקרב.',range:2};
+ if(u.kind===1||u.kind===6)return{name:'התאוששות מגן',detail:'משיב עד6חיים ליחידה עצמה, פעם בקרב. אינו מחיה יחידות.',range:0};
+ if(u.kind===3)return{name:'פריצת שריון',detail:'מכת פריצה סמוכה, עוד4נזק, פעם בקרב.',range:1};
+ if(u.kind===4)return{name:'פעימת שיקום',detail:'היחידה משקמת עד6חיים לעצמה, פעם בקרב.',range:0};
+ if(u.kind===5)return{name:'מטח מכוון',detail:'ירי ארוך בטווח5 ועוד3נזק, פעם בקרב.',range:5};
+ if(u.kind===7&&f!=='crystal')return{name:f==='mars'?'שאגת רקס':f==='grove'?'התפרצות חופה':'גל ירח',detail:'מכת עילית בטווח2 עם עוד5נזק, פעם בקרב.',range:2};
+ } if (u.kind === 7)
     return { name: 'יריקת גבישים', detail: 'טווח 3, נזק 3 ועוד המטען שנאגר (עד 6). כל פגיעה בדרקון מופחתת ב-2 ומטעינה 2. יריקה אחת בקרב, בלי אש.', range: 3 }; if (u.kind !== 2)
     return null; const f = u.faction || g.faction; return f === 'mars' ? { name: 'פעימת הד', detail: 'ירי בטווח 4 עם 3 נזק נוספים, פעם אחת ליחידה בקרב.', range: 4 } : f === 'crystal' ? { name: 'שבר תהודה', detail: 'ירי בטווח 3 עם 4 נזק נוספים, פעם אחת ליחידה בקרב.', range: 3 } : f === 'grove' ? { name: 'פריחת זיכרון', detail: 'מרפאת את היחידה הנבחרת ב-6 חיים, בלי להחיות אבדות. פעם אחת בקרב.', range: 0 } : { name: 'גל כבידה', detail: 'ירי בטווח 3 עם 2 נזק נוספים ודחיפת האויב תא פנוי אחד. פעם אחת בקרב.', range: 3 }; }
 function useAbility(g: Game, u: Unit, id?: string) { const d = ability(g, u); if (!d || u.used)
@@ -966,7 +975,9 @@ else {
     if (!e || distance(u.pos, e.pos, 6) > d.range)
         throw Error('בחרו אויב בטווח היכולת');
     const f = u.faction || g.faction;
-    hit(g, u, e, u.kind === 7 ? 3 + (u.charge || 0) + (active(g).attack || 0) : u.damage + (f === 'mars' ? 3 : f === 'crystal' ? 4 : 2));
+    const crystalDragon=u.kind===7&&(g.rulesRevision!==2||f==='crystal');
+ const bonus=g.rulesRevision===2&&u.kind!==2?({0:2,3:4,5:3,7:5} as Record<number,number>)[u.kind]||0:(f==='mars'?3:f==='crystal'?4:2);
+ hit(g,u,e,crystalDragon?3+(u.charge||0)+(active(g).attack||0):u.damage+bonus);
     if (f === 'tide' && u.kind === 2 && e.hp > 0) {
         const free = neighbors(e.pos, 6, 30).filter(n => !g.battle!.units.some(x => x.hp > 0 && x.pos === n) && distance(n, u.pos, 6) > distance(e.pos, u.pos, 6));
         if (free.length)
