@@ -1,0 +1,20 @@
+import{chromium}from'@playwright/test';import{spawn}from'node:child_process';import assert from'node:assert/strict';
+const proc=spawn('node',['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5196'],{stdio:'pipe'});
+for(let i=0;i<50;i++){try{await fetch('http://127.0.0.1:5196');break}catch{await new Promise(r=>setTimeout(r,100))}}
+const b=await chromium.launch({headless:true,executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});const K='kingdom-independent.saves.v1';const errs=[];
+const ctx=await b.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true}),p=await ctx.newPage();p.on('pageerror',e=>errs.push(e.message));
+const st=()=>p.evaluate(k=>JSON.parse(localStorage.getItem(k))[0].game,K);const nav=n=>p.getByRole('navigation').getByRole('button',{name:n,exact:true}).tap();
+await p.goto('http://127.0.0.1:5196');await p.getByRole('button',{name:'מערכה חדשה',exact:true}).tap();await p.getByRole('button',{name:'יצירת מערכה נפרדת'}).tap();await p.waitForTimeout(600);
+await p.evaluate(k=>{const s=JSON.parse(localStorage.getItem(k));const g=s[0].game;g.gold=300;g.ore=60;g.crystal=30;localStorage.setItem(k,JSON.stringify(s));},K);
+await p.reload();await p.getByRole('button',{name:'פתיחה',exact:true}).tap();await p.waitForTimeout(400);await nav('עיר');
+await p.locator('.palace').tap();await p.getByRole('button',{name:/גיבור נוסף/}).tap();await p.waitForTimeout(250);await p.locator('.sheetx').tap();await p.waitForTimeout(200);
+assert.equal(await p.locator('.slots').count(),2,'two army rows (active + visiting hero)');
+let g=await st();const a0=g.army.length,o0=g.heroes[1].army.length;
+await p.locator('.slots').first().locator('button.slot').first().tap();await p.waitForTimeout(200);
+await p.screenshot({path:'/downloads/o/n-swap-sheet.png'});
+await p.locator('.sheetbox button.primary').first().tap();await p.waitForTimeout(400);
+g=await st();console.log('active army',a0,'->',g.army.length,'other',o0,'->',g.heroes[1].army.length);
+assert.equal(g.heroes[1].army.length,o0+1);
+await p.screenshot({path:'/downloads/o/n-city-rows.png',fullPage:false});
+await p.locator('.slots').nth(1).scrollIntoViewIfNeeded();await p.screenshot({path:'/downloads/o/n-city-rows2.png'});
+console.log('errors',errs.length?errs:'none');await b.close();proc.kill();

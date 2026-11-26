@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "test": "tsx tests.ts",
     "test:solo": "tsx tests-solo.ts",
+    "test:ui": "node qa-ui-2.mjs && node qa-ui-3.mjs && node qa-ui-4.mjs && node qa-ui-5.mjs",
     "build:portable": "vite build --config vite.portable.config.ts && python3 scripts/build-portable.py"
   },
   "dependencies": {

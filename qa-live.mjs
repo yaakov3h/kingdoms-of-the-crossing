@@ -1,0 +1,13 @@
+import{chromium}from'@playwright/test';import assert from'node:assert/strict';
+const URL=process.argv[2],tag=process.argv[3];const K='kingdom-independent.saves.v1';
+const b=await chromium.launch({headless:true,executablePath:'/usr/bin/google-chrome',args:['--no-sandbox']});
+const ctx=await b.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true}),p=await ctx.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('requestfailed',r=>errs.push('reqfail '+r.url()));
+await p.goto(URL);await p.getByRole('button',{name:'מערכה חדשה',exact:true}).tap();await p.getByRole('button',{name:'יצירת מערכה נפרדת'}).tap();await p.waitForTimeout(800);
+await p.evaluate(k=>{const s=JSON.parse(localStorage.getItem(k));const g=s[0].game;g.gold=200;g.ore=60;g.crystal=30;localStorage.setItem(k,JSON.stringify(s));},K);
+await p.reload();await p.getByRole('button',{name:'פתיחה',exact:true}).tap();await p.waitForTimeout(500);
+await p.getByRole('navigation').getByRole('button',{name:'עיר',exact:true}).tap();await p.waitForTimeout(500);
+await p.screenshot({path:`/downloads/o/${tag}-city.png`});
+await p.locator('.hit-silo').tap();await p.waitForTimeout(300);await p.screenshot({path:`/downloads/o/${tag}-silo.png`});await p.locator('.sheetx').tap();
+await p.locator('.utile').first().tap();await p.getByRole('button',{name:'מקס'}).tap();await p.locator('.primary').tap();await p.waitForTimeout(400);
+const g=await p.evaluate(k=>JSON.parse(localStorage.getItem(k))[0].game,K);console.log('army',g.army.length,'gold',g.gold,'bundle',await p.evaluate(()=>[...document.scripts].map(s=>s.src).join(',')));
+console.log('errs',errs.length?errs:'none');await b.close();
