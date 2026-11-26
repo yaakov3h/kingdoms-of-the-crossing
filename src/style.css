@@ -48,3 +48,9 @@ dialog.sheet{margin:auto auto 0;width:100%;max-width:560px;max-height:90vh;paddi
 @media(min-width:700px){.page .panorama{width:fit-content;max-width:100%;margin-inline:auto}.page .panorama img{display:block;max-height:58vh;max-width:100%;width:auto}}
 .chip{unicode-bidi:isolate}.chip.num,.chips .chip{direction:ltr}.pips{direction:ltr;text-align:start;unicode-bidi:isolate}.sheetpic.wide{background:#06161c}.sheetpic.wide.mine,.sheetpic.wide:not(.cover){object-fit:contain}
 .resources span:nth-child(n+3):nth-child(-n+5){direction:ltr;unicode-bidi:isolate}
+
+.cityhit span.lvbadge{min-width:26px;height:26px;padding:0;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:700;background:#8a6a1fe8;color:#fff;border:2px solid #f4d68e;direction:ltr}.pips{display:flex;gap:8px;align-items:center}
+.cityhit span.lvbadge.new{background:#2d6b4fe8}
+.hint{font-size:12px;opacity:.75;margin:4px 0}.utile.locked{opacity:.6;min-height:0}.utile.locked small{font-size:11px}
+.chip.mv{position:relative;overflow:hidden}.chip.mv .mvbar{position:absolute;left:0;bottom:0;height:3px;background:#e8bb73;display:block}.mapchips{display:flex;gap:6px;flex-wrap:wrap}
+.ic-move{background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M2 9l4-7 3 1-1 5 6 2v3H3z' fill='%23d9c9a0' stroke='%238a6414' stroke-width='1'/></svg>")}.ic-day{background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='4' fill='%23f2c94c'/><path d='M8 0v3M8 13v3M0 8h3M13 8h3M2.500 2.500l2 2M11.500 11.500l2 2M13.500 2.500l-2 2M4.500 11.500l-2 2' stroke='%23f2c94c' stroke-width='1.500'/></svg>")}
