@@ -56,6 +56,8 @@ export class KingdomScene extends Phaser.Scene {
         this.cameras.main.setZoom(Phaser.Math.Clamp(this.cameras.main.zoom + d, .5, 2)); }
     center() { if (!this.state || this.state.battle)
         return; const w=worldSize(this.state);this.focus((this.state.pos%w)*80+40,Math.floor(this.state.pos/w)*80+40); }
+    centerCapital() { if (!this.state || this.state.battle)
+        return; this.focus(40,40); }
     private focus(x:number,y:number){const c=this.cameras.main,w=worldSize(this.state)*80,hx=this.scale.width/(2*c.zoom),hy=this.scale.height/(2*c.zoom);c.centerOn(Phaser.Math.Clamp(x,hx,w-hx),Phaser.Math.Clamp(y,hy,w-hy));}
     private landscape(add:(o:Phaser.GameObjects.GameObject)=>void){
         const g=this.state,w=worldSize(g),key='landscape-'+g.seed+'-'+w;
