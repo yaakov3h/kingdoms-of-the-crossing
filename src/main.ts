@@ -433,7 +433,7 @@ function campaignCity(main:HTMLElement){
  if(!atHome){const away=el('div',undefined,'reason');away.append(el('span','🏰 '+active(town).name+' מחוץ לבירה. גיוס ובנייה רק כשהגיבור בעיר. '));const other=town.heroes.find(h=>h.pos===0&&h.id!==town.activeHero);if(other)away.append(button('להפעיל את '+other.name,()=>action({kind:'selectHero',hero:other.id})));else away.append(button('למפה',()=>navigate('map')));inner.append(away);}
  const panorama=el('div',undefined,'panorama faction-'+town.faction),image=img('city-'+town.faction);image.alt='תוכנית העיר '+names.center;panorama.append(image);
  for(const key of ['center',...Object.keys(buildings),'silo']){const hit=button('',()=>{sheet={t:'bld',k:key};sheetQty=1;render();},'cityhit '+(key==='center'?'palace':'hit-'+key));const nm=key==='silo'?SILO_NAME:names[key],lvl=key==='center'?town.level:key==='silo'?(town.silo||0):town.buildings[key];hit.ariaLabel='פרטי '+nm;hit.append(el('span',lvl?String(lvl):'+','lvbadge'+(lvl?'':' new')));panorama.append(hit);}
- inner.append(panorama,el('h3','צבא הגיבור'),slotsRow(town.army.filter(u=>u.hp>0)),el('h3','גיוס'));
+ inner.append(panorama,el('h3','צבא '+active(town).name),slotsRow(town.army.filter(u=>u.hp>0)));for(const oh of town.heroes.filter(x=>x.id!==town.activeHero&&x.pos===active(town).pos)){inner.append(el('h3','בעיר: '+oh.name),slotsRow(oh.army.filter(u=>u.hp>0)));}inner.append(el('h3','גיוס'));
  const strip=el('div',undefined,'ustrip');rosters[town.faction].forEach((_d,k)=>strip.append(unitTile(k,()=>{sheet={t:'unit',k};sheetQty=1;render();})));inner.append(strip);
  main.append(p);drawSheet();
 }
@@ -446,7 +446,7 @@ function recruitMany(kind:number,n:number){if(walking)return;let cur=g(),done=0,
  if(done){persist(cur);message=cur.log[0];sheet=null;sheetQty=1;render();say('גויסו '+done+' · '+rosters[cur.faction][kind].name+(err?' · '+err:''));}else say(err||'לא גויס');}
 function drawSheet(){if(!sheet||!current)return;const town=g(),names=townNames[town.faction],atHome=town.pos===0,d=el('dialog',undefined,'sheet'),box=el('div',undefined,'sheetbox');
  const x=button('✕',()=>closeSheet(),'sheetx');x.ariaLabel='סגירה';box.append(x);
- if(sheet.t==='army'){const u=town.army.find(u=>u.id===sheet!.k)||town.heroes.flatMap(h=>h.army).find(u=>u.id===sheet!.k);if(u){const c=unitCard(u);c.classList.add('flat');box.append(c);}else sheet=null;}
+ if(sheet.t==='army'){const u=town.army.find(u=>u.id===sheet!.k)||town.heroes.flatMap(h=>h.army).find(u=>u.id===sheet!.k);if(u){const c=unitCard(u);c.classList.add('flat');box.append(c);if(town.army.some(x=>x.id===u.id)){const hh=active(town);for(const other of town.heroes.filter(x=>x.id!==hh.id&&x.pos===hh.pos)){const tb=button('⇄ '+other.name,()=>{sheet=null;action({kind:'transfer',hero:other.id,unit:u.id});},'primary');box.append(tb);}}}else sheet=null;}
  else if(sheet.t==='unit'){
   const k=sheet.k as number,r=rosters[town.faction][k],stock=town.recruitmentStock?.[k]||0,free=6-town.army.filter(u=>u.hp>0).length,ok=unlockedUnit(k);
   const cap=(c:number,h:number)=>c?Math.floor(h/c):99,afford=Math.min(cap(r.gold,town.gold),cap(r.ore,town.ore),cap(r.crystal,town.crystal)),max=Math.max(0,Math.min(stock,free,afford));
