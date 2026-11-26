@@ -69,6 +69,7 @@ export type Rival = {
 export type Game = {
     rulesRevision?: 2; roads?: number[]; recruitmentStock?: number[]; builtDay?: number;
     treasury?: number;
+    silo?: number;
     lastIncome?: {
         day: number;
         gold: number;
@@ -132,7 +133,9 @@ function createBase(seed: number, f = 'mars', size = 18): Game { const r = rng(s
         g.sites.push({ id: n, type, done: false, owner: false, guard: type === 'mine' && k < 2 ? 0 : guard, ...(type === 'mine' ? { resource: (['gold', 'ore', 'crystal'] as const)[k % 3] } : {}), ...(['factory', 'sanctuary', 'gravity', 'hatchery'].includes(type) ? { stock: 2 } : {}) });
     }
 } g.rivals.forEach(v => { v.army = [0, 1, 2].map((k, i) => ({ ...recruitUnit({ faction: v.faction, level: 0 }, k, 'rival-' + v.id + '-' + i), side: 1 })); }); g.army = [0, 1, 2].map((k, i) => recruitUnit(g, k, 'unit-' + i)); reveal(g, 0, size > 10 ? 3 : 1); g.seen.push(south, last); return g; }
-export function economy(g: Game) { const level = g.treasury || 0; const base = { gold: 2 + level * 2, ore: 1, crystal: level }; const mines = g.sites.filter(s => s.type === 'mine' && s.owner && !g.rivals.some(r => !r.defeated && r.mines.includes(s.id))); const total = { ...base }; for (const s of mines)
+export const siloCosts = [[14, 4, 0], [22, 8, 3]];
+export const siloYield = [{ ore: 0, crystal: 0 }, { ore: 2, crystal: 0 }, { ore: 4, crystal: 1 }];
+export function economy(g: Game) { const level = g.treasury || 0; const sy = siloYield[Math.min(2, g.silo || 0)]; const base = { gold: 2 + level * 2, ore: 1 + sy.ore, crystal: level + sy.crystal }; const mines = g.sites.filter(s => s.type === 'mine' && s.owner && !g.rivals.some(r => !r.defeated && r.mines.includes(s.id))); const total = { ...base }; for (const s of mines)
     total[s.resource || 'gold'] += (s.resource === 'crystal' ? 1 : 2) + (s.incomeLevel || 0); return { base, mines, total }; }
 export const treasuryCosts = [[12, 6, 0], [24, 10, 4]];
 export const mineCosts = [[8, 4, 0], [14, 6, 2]];
@@ -672,6 +675,24 @@ function actCore(old: Game, a: Action): Game {
     }
     if (!g.battle && h.ap <= 0)
         throw Error('לגיבור אין פעולות היום. בחרו משלחת אחרת או סיימו יום.');
+    if (a.kind === 'silo') {
+        if (g.battle || g.pos !== 0 || g.rulesRevision !== 2)
+            throw Error('בנייה בבירה בלבד');
+        const lv = g.silo || 0, c = siloCosts[lv];
+        if (!c)
+            throw Error('המבנה ברמה המרבית');
+        if (g.builtDay === g.day)
+            throw Error('אפשר לבנות או לשדרג מבנה אחד ביום');
+        if (lv === 1 && g.level < 1)
+            throw Error('לרמה השנייה נדרש מרכז עיר ברמה 1');
+        if (g.gold < c[0] || g.ore < c[1] || g.crystal < c[2])
+            throw Error('אין די משאבים לבנייה');
+        g.gold -= c[0]; g.ore -= c[1]; g.crystal -= c[2];
+        g.silo = lv + 1; g.builtDay = g.day;
+        advance(g); sync(g);
+        addlog(g, 'מחסן המשאבים שודרג לרמה ' + g.silo + '. התפוקה החדשה מתקבלת בסוף היום.');
+        return g;
+    }
     if (['treasury', 'improveMine', 'trade'].includes(a.kind)) {
         if (g.battle)
             throw Error('פעולות כלכלה אינן זמינות בקרב');

@@ -2,7 +2,7 @@ import {rosters,townNames,buildingPrerequisites} from './roster';
 import { campaignRules, terrainCatalog } from './catalog';
 import Phaser from 'phaser';
 import { mountPaired, unmountPaired } from './paired-ui';
-import { Game, Action, create, createCampaign, movementCost, routeCost, normalize, apply, active, faction, factions, worldSize, routeTo, economy, buildings, specialSites, pyro, ability, trades, heroNames, equipment, treasuryCosts, mineCosts } from './engine';
+import { Game, Action, create, createCampaign, movementCost, routeCost, normalize, apply, active, faction, factions, worldSize, routeTo, economy, buildings, specialSites, pyro, ability, trades, heroNames, equipment, treasuryCosts, mineCosts, siloCosts, siloYield } from './engine';
 import { Save, listSaves, putSave, exportSave, importSave } from './storage';
 import { KingdomScene } from './scene';
 import { img, art } from './art';
@@ -20,6 +20,13 @@ const cameraViews = new Map<string, {
 }>();
 let scene: KingdomScene | null = null;
 let cityDetail: string | null = null;
+let sheet:{t:string,k?:any}|null=null,sheetQty=1;
+const N=(x:any)=>'\u2066'+x+'\u2069';
+const ARTSET:Record<string,Record<string,string>>={mars:{center:'citadel',barracks:'site-mars',workshop:'factory',observatory:'gravity',sanctuary:'sanctuary'},crystal:{center:'site-crystal-city',barracks:'hatchery',workshop:'factory',observatory:'site-beacon',sanctuary:'sanctuary'},grove:{center:'site-grove',barracks:'site-grove',workshop:'ruin',observatory:'site-beacon',sanctuary:'sanctuary'},tide:{center:'base',barracks:'site-camp',workshop:'factory',observatory:'gravity',sanctuary:'sanctuary'}};
+const artFor=(f:string,k:string)=>ARTSET[f]?.[k]||'base';
+const SILO_NAME='מחסן המשאבים';
+const ICO:any={gold:'🪙',ore:'⛏️',crystal:'💎'};
+function closeSheet(){sheet=null;sheetQty=1;render();}
 let selectedCell: number | null = null;
 let walking=false,walkToken=0;
 let travelHint='';
@@ -27,8 +34,11 @@ let refreshWalkingMap:(()=>void)|null=null;
 let toastTimer:ReturnType<typeof setTimeout>|undefined;
 let saveStatus = 'לא נבחרה מערכה';
 let message = 'מסע בין ארבע ממלכות מקוריות. שמירה אוטומטית במכשיר ויצוא גיבוי.';
+const ICONRE=/[\u{1F000}-\u{1FAFF}\u2B50\u26CF\u2699\u2696\uFE0F]/gu;
+const ICONMAP:Record<string,string>={'\u{1FA99}':'gold','\u26CF':'ore','\u{1F48E}':'crystal','\u{1F3AF}':'range','\u{1F6E1}':'shield','\u2B50':'star'};
+function fillText(e:HTMLElement,text:string){if(!ICONRE.test(text)){e.textContent=text;return;}ICONRE.lastIndex=0;let last=0;for(const m of text.matchAll(ICONRE)){e.append(text.slice(last,m.index));const n=ICONMAP[m[0]];if(n){const i=document.createElement('i');i.className='ic ic-'+n;e.append(i);}last=m.index!+m[0].length;}e.append(text.slice(last).replace(/^\s+/,m=>m));}
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => { const e = document.createElement(tag); if (text)
-    e.textContent = text; if (cls)
+    fillText(e,text); if (cls)
     e.className = cls; return e; };
 const button = (text: string, fn: () => void, cls = '') => { const b = el('button', text, cls); b.type = 'button'; b.onclick = fn; return b; };
 const paragraph = (s: string) => el('p', s);
@@ -61,7 +71,7 @@ function action(a: Action) { if(walking)return;try {
 catch (e) {
     say(String(e).replace('Error: ', ''));
 } }
-function navigate(s: string) { walkToken++;walking=false;if (s === 'city')
+function navigate(s: string) { sheet=null;sheetQty=1;walkToken++;walking=false;if (s === 'city')
     cityDetail = null; if (current?.game.battle && s !== 'home' && s !== 'map') {
     say('סיימו את הקרב או חזרו אליו דרך המפה');
     return;
@@ -91,7 +101,7 @@ function render() {
     const resources = el('div', undefined, 'resources');
     if (current && screen !== 'paired') {
         const e = economy(g()).total;
-        resources.append(el('b', faction(g()).name), el('span', 'יום ' + g().day), el('span', 'זהב ' + g().gold + ' (+' + e.gold + ')'), el('span', 'עפרות ' + g().ore + ' (+' + e.ore + ')'), el('span', 'גבישים ' + g().crystal + ' (+' + e.crystal + ')'), el('span', saveStatus));
+        resources.append(el('b', faction(g()).name), el('span', 'יום ' + g().day), el('span', '🪙 ' + g().gold + ' (+' + e.gold + ')'), el('span', '⛏️ ' + g().ore + ' (+' + e.ore + ')'), el('span', '💎 ' + g().crystal + ' (+' + e.crystal + ')'), el('span', saveStatus));
     }
     else
         resources.append(el('span', screen === 'paired' ? 'סביבת בדיקה בלבד. שרת מקומי, לא שירות אינטרנט.' : 'שמירות אישיות במכשיר. אין עדיין שירות רשת פעיל.'));
@@ -137,6 +147,7 @@ function render() {
         return;
     }
     if (screen === 'army') {
+        if(g().rulesRevision===2){campaignArmy(main);return;}
         const { p, inner } = page('הצבא הפעיל');
         inner.append(paragraph(active(g()).name + ' · ' + active(g()).ap + '/' + active(g()).maxAp + ' פעולות'));
         const grid = el('div', undefined, 'units');
@@ -377,7 +388,7 @@ function city(main: HTMLElement) {
     }
     main.append(p);
 }
-function heroes(main: HTMLElement) { const { p, inner } = page('המפקדים והמשלחות'); for (const h of g().heroes) {
+function heroes(main: HTMLElement) { if(g().rulesRevision===2){campaignHeroes(main);return;} const { p, inner } = page('המפקדים והמשלחות'); for (const h of g().heroes) {
     const d = el('article', undefined, 'card');
     d.append(img('hero-' + g().faction), el('h3', h.name), paragraph(`דרגה ${h.rank || 1} · תא ${h.pos} · פעולות ${h.ap}/${h.maxAp} · צבא ${h.army.filter(u => u.hp > 0).length}/6`), button(h.id === g().activeHero ? 'המפקד הפעיל' : 'הפעלת המשלחת', () => action({ kind: 'selectHero', hero: h.id })));
     inner.append(d);
@@ -389,7 +400,7 @@ function heroes(main: HTMLElement) { const { p, inner } = page('המפקדים �
     inner.append(button(name, () => modal('בחירת שיפור קבוע במערכה?', () => action({ kind: 'talent', unit: key })))); inner.append(el('h3', 'ציוד')); for (const r of g().relics)
     inner.append(button(equipment[r]?.name || r, () => action({ kind: 'equip', unit: r }))); inner.append(el('h3', 'מסורת ממלכה')); for (const [key, name] of [['arms', 'כוח'], ['bastion', 'מגן'], ['trade', 'סחר']])
     inner.append(button(name, () => modal('מסורת קבועה:16זהב6עפרות4גבישים ופעולה. להמשיך?', () => action({ kind: 'doctrine', unit: key })))); inner.append(el('h3', 'יומן')); g().log.forEach(t => inner.append(el('div', t, 'log'))); main.append(p); }
-function economyPage(main: HTMLElement) { const { p, inner } = page('אוצר ושוק'), e = economy(g()); inner.append(paragraph(`הכנסה בסוף יום: ${e.total.gold} זהב · ${e.total.ore} עפרות · ${e.total.crystal} גבישים`)); const t = g().treasury || 0; inner.append(el('h3', 'אוצר הבירה ·רמה ' + t)); if (t < 2)
+function economyPage(main: HTMLElement) { if(g().rulesRevision===2){campaignEconomy(main);return;} const { p, inner } = page('אוצר ושוק'), e = economy(g()); inner.append(paragraph(`הכנסה בסוף יום: ${e.total.gold} זהב · ${e.total.ore} עפרות · ${e.total.crystal} גבישים`)); const t = g().treasury || 0; inner.append(el('h3', 'אוצר הבירה ·רמה ' + t)); if (t < 2)
     inner.append(button('שדרוג ·' + treasuryCosts[t].join('/'), () => action({ kind: 'treasury' }))); if (g().lastIncome)
     inner.append(paragraph('גבייה אחרונה: יום ' + g().lastIncome!.day + ' · ' + g().lastIncome!.gold + ' זהב · ' + g().lastIncome!.ore + ' עפרות · ' + g().lastIncome!.crystal + ' גבישים')); for (const s of e.mines) {
     const d = el('article', undefined, 'card');
@@ -417,20 +428,76 @@ function guide(main:HTMLElement){
 
 function campaignCity(main:HTMLElement){
  const {p,inner}=page(townNames[g().faction].center),town=g(),names=townNames[town.faction],atHome=town.pos===0;
+ const week=Math.floor((town.day-1)/7)+1,dayOfWeek=((town.day-1)%7)+1;
+ const status=el('div',undefined,'statusrow');status.append(el('span','שבוע '+N(week)+' · יום '+N(dayOfWeek),'chip'),el('span',town.builtDay===town.day?'בנייה להיום: בוצעה':'בנייה להיום: פנויה','chip'));inner.append(status);
+ if(!atHome){const away=el('div',undefined,'reason');away.append(el('span','🏰 '+active(town).name+' מחוץ לבירה. גיוס ובנייה רק כשהגיבור בעיר. '));const other=town.heroes.find(h=>h.pos===0&&h.id!==town.activeHero);if(other)away.append(button('להפעיל את '+other.name,()=>action({kind:'selectHero',hero:other.id})));else away.append(button('למפה',()=>navigate('map')));inner.append(away);}
  const panorama=el('div',undefined,'panorama faction-'+town.faction),image=img('city-'+town.faction);image.alt='תוכנית העיר '+names.center;panorama.append(image);
- for(const key of ['center',...Object.keys(buildings)]){const hit=button('',()=>document.getElementById('city-building-'+key)?.scrollIntoView({behavior:'smooth',block:'start'}),'cityhit '+(key==='center'?'palace':'hit-'+key));hit.ariaLabel='פרטי '+names[key];hit.append(el('span',names[key]+' · '+(key==='center'?town.level:town.buildings[key])));panorama.append(hit);}
- inner.append(panorama,paragraph('שבוע '+(Math.floor((town.day-1)/7)+1)+' · יום '+((town.day-1)%7+1)+' · '+(town.builtDay===town.day?'הבנייה להיום הושלמה':'אפשר להקים או לשדרג מבנה אחד היום')));
- inner.append(paragraph(atHome?'הגיבור בבירה. אפשר לבנות, לגייס ולהצטייד.':'החזירו גיבור לבירה לבנייה וגיוס. אפשר לעיין בתוכנית העיר גם מרחוק.'));
- const grid=el('div',undefined,'grid town-buildings'),center=el('article',undefined,'card');center.id='city-building-center';center.append(el('h3',names.center+' · '+town.level+'/2'),paragraph('כל רמה מחזקת יחידות וגיוסים, ומאפשרת התקדמות עירונית.'));
- if(town.level<2){const b=button('שדרוג מרכז ·10זהב5עפרות2גבישים',()=>action({kind:'upgrade'}));b.disabled=!atHome||town.builtDay===town.day;center.append(b);}center.append(button('ריפוי הצבא ·4זהב',()=>action({kind:'heal'})),button('גיבור נוסף ·18זהב4עפרות2גבישים',()=>action({kind:'hireHero'})));grid.append(center);
- for(const [key,d]of Object.entries(buildings)){
-  const lv=town.buildings[key],card=el('article',undefined,'card');card.id='city-building-'+key;card.append(img(d.art),el('h3',names[key]+' · '+lv+'/2'));
-  const req=buildingPrerequisites[key],missing=req.filter(r=>town.buildings[r.key]<r.level);
-  card.append(paragraph(req.length?'דורש: '+req.map(r=>names[r.key]+' '+r.level).join(' · '):'מבנה יסוד'),paragraph('פותח: '+rosters[town.faction].filter(u=>u.building===key).map(u=>u.name).join(' · ')));
-  if(lv<2){const cost=d.cost[lv],b=button('בנייה ·'+cost[0]+' זהב · '+cost[1]+' עפרות · '+cost[2]+' גבישים',()=>action({kind:'build',unit:key}));b.disabled=!atHome||town.builtDay===town.day||missing.length>0||(lv===1&&town.level<1);card.append(b);}grid.append(card);
- }inner.append(grid,el('h3','חצרות הגיוס'),paragraph('תגבורת בתחילת כל שבוע, ללא גיוס אינסופי. הצבא מכיל עד שש יחידות נפרדות.'));
- const units=el('div',undefined,'units');for(const [kind,d]of rosters[town.faction].entries()){
-  const card=el('article',undefined,'card'),unlocked=d.building==='center'||town.buildings[d.building]>=d.tier;card.append(img(art(town.faction,kind)),el('h3',d.name),paragraph(d.role+' · '+d.hp+' חיים · '+d.damage+' נזק · טווח '+d.range),paragraph('מלאי '+(town.recruitmentStock?.[kind]||0)+' · צמיחה שבועית '+d.growth),paragraph(d.gold+' זהב · '+d.ore+' עפרות · '+d.crystal+' גבישים'));
-  const b=button(unlocked?'גיוס '+d.name:'נדרש '+names[d.building]+' '+d.tier,()=>action({kind:'recruit',unitKind:kind}));b.disabled=!atHome||!unlocked||!town.recruitmentStock?.[kind];card.append(b);units.append(card);
- }inner.append(units);main.append(p);
+ for(const key of ['center',...Object.keys(buildings),'silo']){const hit=button('',()=>{sheet={t:'bld',k:key};sheetQty=1;render();},'cityhit '+(key==='center'?'palace':'hit-'+key));const nm=key==='silo'?SILO_NAME:names[key],lvl=key==='center'?town.level:key==='silo'?(town.silo||0):town.buildings[key];hit.ariaLabel='פרטי '+nm;hit.append(el('span',nm+' · '+lvl));panorama.append(hit);}
+ inner.append(panorama,el('h3','צבא הגיבור'),slotsRow(town.army.filter(u=>u.hp>0)),el('h3','גיוס'));
+ const strip=el('div',undefined,'ustrip');rosters[town.faction].forEach((_d,k)=>strip.append(unitTile(k,()=>{sheet={t:'unit',k};sheetQty=1;render();})));inner.append(strip);
+ main.append(p);drawSheet();
 }
+function unlockedUnit(k:number){const t=g(),d=rosters[t.faction][k];return d.building==='center'||(t.buildings[d.building]||0)>=d.tier;}
+function unitTile(k:number,onTap:()=>void){const t=g(),d=rosters[t.faction][k],ok=unlockedUnit(k),b=el('button',undefined,'utile'+(ok?'':' locked'));b.type='button';b.onclick=onTap;b.ariaLabel=d.name;
+ b.append(img(art(t.faction,k)),el('span',ok?String(t.recruitmentStock?.[k]||0):'🔒','badge'),el('small',d.name));const c=chips(d);c.classList.add('mini');b.append(c);return b;}
+function slotsRow(army:any[]){const row=el('div',undefined,'slots');for(let i=0;i<6;i++){const u=army[i];if(!u){row.append(el('div','+','slot empty'));continue;}const b=el('button',undefined,'slot');b.type='button';b.ariaLabel=u.name;b.onclick=()=>{sheet={t:'army',k:u.id};render();};b.append(img(art(u.faction||g().faction,u.kind)));const bar=el('span',undefined,'hpbar'),fill=el('i');fill.style.width=Math.max(4,Math.round(100*u.hp/u.max))+'%';bar.append(fill);b.append(bar);row.append(b);}return row;}
+function chips(c:any,have?:any){const w=el('span',undefined,'chips');for(const k of ['gold','ore','crystal']){const v=c[k]||0;if(!v)continue;const s=el('span',ICO[k]+' '+v,'chip num');if(have&&have[k]<v)s.classList.add('short');w.append(s);}return w;}
+function recruitMany(kind:number,n:number){if(walking)return;let cur=g(),done=0,err='';for(let i=0;i<n;i++){try{cur=apply(cur,{kind:'recruit',unitKind:kind});done++;}catch(e){err=String(e).replace('Error: ','');break;}}
+ if(done){persist(cur);message=cur.log[0];sheet=null;sheetQty=1;render();say('גויסו '+done+' · '+rosters[cur.faction][kind].name+(err?' · '+err:''));}else say(err||'לא גויס');}
+function drawSheet(){if(!sheet||!current)return;const town=g(),names=townNames[town.faction],atHome=town.pos===0,d=el('dialog',undefined,'sheet'),box=el('div',undefined,'sheetbox');
+ const x=button('✕',()=>closeSheet(),'sheetx');x.ariaLabel='סגירה';box.append(x);
+ if(sheet.t==='army'){const u=town.army.find(u=>u.id===sheet!.k)||town.heroes.flatMap(h=>h.army).find(u=>u.id===sheet!.k);if(u){const c=unitCard(u);c.classList.add('flat');box.append(c);}else sheet=null;}
+ else if(sheet.t==='unit'){
+  const k=sheet.k as number,r=rosters[town.faction][k],stock=town.recruitmentStock?.[k]||0,free=6-town.army.filter(u=>u.hp>0).length,ok=unlockedUnit(k);
+  const cap=(c:number,h:number)=>c?Math.floor(h/c):99,afford=Math.min(cap(r.gold,town.gold),cap(r.ore,town.ore),cap(r.crystal,town.crystal)),max=Math.max(0,Math.min(stock,free,afford));
+  const reason=!atHome?'הגיבור הפעיל מחוץ לבירה':!ok?'נדרש: '+names[r.building]+' רמה '+r.tier:stock<=0?'המלאי אזל. תגבורת מגיעה בתחילת כל שבוע':free<=0?'הצבא מלא (6/6)':afford<=0?'אין די משאבים':'';
+  const qty=Math.min(Math.max(1,sheetQty),Math.max(1,max));
+  box.append(el('h2',r.name,'sheettitle'));const pic=img(art(town.faction,k));pic.className='sheetpic';box.append(pic);
+  const st=el('div',undefined,'statusrow');st.append(el('span','❤ '+r.hp,'chip stat num'),el('span','⚔ '+r.damage,'chip stat num'),el('span','🎯 '+r.range,'chip stat num'),el('span',r.role,'chip'),el('span','מלאי '+N(stock),'chip'),el('span','בשבוע '+N('+'+r.growth),'chip'));box.append(st);
+  const step=el('div',undefined,'stepper');const minus=button('−',()=>{sheetQty=Math.max(1,qty-1);render();}),plus=button('+',()=>{sheetQty=Math.min(max,qty+1);render();}),all=button('מקס',()=>{sheetQty=Math.max(1,max);render();});minus.disabled=qty<=1;plus.disabled=qty>=max;all.disabled=max<=1;step.append(plus,el('b',String(qty)),minus,all);box.append(step);
+  const tot=el('div',undefined,'totalrow');tot.append(el('span','סה"כ'),chips({gold:r.gold*qty,ore:r.ore*qty,crystal:r.crystal*qty},town));box.append(tot);
+  if(reason)box.append(el('div','⚠ '+reason,'reason'));
+  const go=button('גיוס ×'+qty,()=>recruitMany(k,qty),'primary');go.disabled=!!reason||max<1;box.append(go);
+ }
+ else if(sheet.t==='bld'&&sheet.k==='silo'){
+  const lv=Math.min(2,town.silo||0);box.append(el('h2',SILO_NAME,'sheettitle'));const pic=img('mine');pic.className='sheetpic wide mine';box.append(pic);const pips=el('div',undefined,'pips');pips.append(el('span','●'.repeat(lv)+'○'.repeat(2-lv)),el('span',' רמה '+N(lv+'/2')));box.append(pips);
+  const yl=(y:any)=>{const c=el('span',undefined,'chips');if(y.ore)c.append(el('span','⛏️ +'+y.ore,'chip num'));if(y.crystal)c.append(el('span','💎 +'+y.crystal,'chip num'));if(!y.ore&&!y.crystal)c.append(el('span','—','chip'));return c;};
+  const now=el('div',undefined,'totalrow');now.append(el('span','הכנסה יומית עכשיו'),yl(siloYield[lv]));box.append(now);
+  if(lv<2){const cost=siloCosts[lv],c={gold:cost[0],ore:cost[1],crystal:cost[2]},nx=el('div',undefined,'totalrow');nx.append(el('span','אחרי השדרוג'),yl(siloYield[lv+1]));box.append(nx);
+   const reason=!atHome?'הגיבור הפעיל מחוץ לבירה':town.builtDay===town.day?'אפשר לבנות רק פעם אחת ביום':(lv===1&&town.level<1)?'לרמה 2 נדרש מרכז העיר ברמה 1':(town.gold<c.gold||town.ore<c.ore||town.crystal<c.crystal)?'אין די משאבים':'';
+   const row=el('div',undefined,'totalrow');row.append(el('span',lv?'שדרוג':'בנייה'),chips(c,town));box.append(row);if(reason)box.append(el('div','⚠ '+reason,'reason'));const go=button((lv?'שדרוג ':'בנייה ')+SILO_NAME,()=>action({kind:'silo'}),'primary');go.disabled=!!reason;box.append(go);}
+  else box.append(el('div','✔ הגיע לרמה המרבית','chip'));
+ }
+ else if(sheet.t==='bld'){
+  const key=sheet.k as string,isC=key==='center',lv=isC?town.level:(town.buildings[key]||0),b=isC?null:buildings[key];
+  box.append(el('h2',names[key],'sheettitle'));
+  {const pic=img(artFor(town.faction,key));pic.className='sheetpic wide';box.append(pic);}
+  const pips=el('div',undefined,'pips');pips.append(el('span','●'.repeat(lv)+'○'.repeat(2-lv)),el('span',' רמה '+N(lv+'/2')));box.append(pips);
+  const reqs=isC?[]:buildingPrerequisites[key],missing=reqs.filter(r=>(town.buildings[r.key]||0)<r.level);
+  if(reqs.length){const rr=el('div',undefined,'statusrow');for(const r of reqs)rr.append(el('span',((town.buildings[r.key]||0)>=r.level?'✔ ':'✖ ')+names[r.key]+' '+r.level,'chip'));box.append(rr);}
+  if(lv<2){const cost=isC?[10,5,2]:b!.cost[lv],c={gold:cost[0],ore:cost[1],crystal:cost[2]};
+   const reason=!atHome?'הגיבור הפעיל מחוץ לבירה':town.builtDay===town.day?'אפשר לבנות רק פעם אחת ביום':missing.length?'חסר: '+missing.map(r=>names[r.key]+' '+r.level).join(', '):(!isC&&lv===1&&town.level<1)?'לרמה 2 נדרש מרכז העיר ברמה 1':(town.gold<c.gold||town.ore<c.ore||town.crystal<c.crystal)?'אין די משאבים':'';
+   const row=el('div',undefined,'totalrow');row.append(el('span',lv?'שדרוג':'בנייה'),chips(c,town));box.append(row);if(reason)box.append(el('div','⚠ '+reason,'reason'));
+   const go=button((lv?'שדרוג ':'בנייה ')+names[key],()=>action(isC?{kind:'upgrade'}:{kind:'build',unit:key}),'primary');go.disabled=!!reason;box.append(go);}
+  else box.append(el('div','✔ הגיע לרמה המרבית','chip'));
+  if(isC){const h=town.gold<4?'אין די משאבים':!atHome?'הגיבור הפעיל מחוץ לבירה':'';const heal=button('❤ ריפוי הצבא · 🪙 4',()=>action({kind:'heal'}));heal.disabled=!!h;const hire=button('גיבור נוסף +',()=>action({kind:'hireHero'}));const hc={gold:18,ore:4,crystal:2};hire.disabled=!atHome||town.gold<18||town.ore<4||town.crystal<2;box.append(el('div',undefined,'gap'),heal,hire,chips(hc,town));}
+  const us=rosters[town.faction].map((_d,k)=>k).filter(k=>rosters[town.faction][k].building===key);
+  if(us.length){box.append(el('h3','גיוס'));const strip=el('div',undefined,'ustrip');us.forEach(k=>strip.append(unitTile(k,()=>{sheet={t:'unit',k};sheetQty=1;render();})));box.append(strip);}
+ }
+ d.append(box);d.oncancel=e=>{e.preventDefault();closeSheet();};d.addEventListener('click',e=>{if(e.target===d)closeSheet();});app.append(d);d.showModal();}
+function campaignHeroes(main:HTMLElement){const {p,inner}=page('גיבורים'),town=g();
+ for(const h of town.heroes){const card=el('article',undefined,'card herocard'+(h.id===town.activeHero?' activehero':''));const top=el('div',undefined,'herotop');top.append(img('hero-'+town.faction),el('div'));const info=top.lastElementChild as HTMLElement;info.append(el('h3',h.name),el('div',undefined,'statusrow'));const sr=info.lastElementChild as HTMLElement;sr.append(el('span','⭐ דרגה '+N(h.rank||1),'chip'),el('span','⚡ '+h.ap+'/'+h.maxAp,'chip num'),el('span',h.pos===0?'🏰 בעיר':'🗺 במסע','chip'));card.append(top,slotsRow(h.army.filter(u=>u.hp>0)));
+  const b=button(h.id===town.activeHero?'✔ פעיל':'הפעלה',()=>action({kind:'selectHero',hero:h.id}),h.id===town.activeHero?'':'primary');b.disabled=h.id===town.activeHero;card.append(b);inner.append(card);}
+ const h=active(town);for(const other of town.heroes.filter(x=>x.id!==h.id&&x.pos===h.pos)){inner.append(el('h3','העברת יחידה אל '+other.name));const row=el('div',undefined,'ustrip');for(const u of town.army.filter(u=>u.hp>0)){const b=el('button',undefined,'utile');b.type='button';b.append(img(art(u.faction||town.faction,u.kind)),el('small',u.name));b.onclick=()=>modal('להעביר את '+u.name+' אל '+other.name+'?',()=>action({kind:'transfer',hero:other.id,unit:u.id}));row.append(b);}inner.append(row);}
+ const free=(h.rank||1)-1-(h.talents?.length||0);inner.append(el('h3','שיפורי '+h.name+' · נקודות פנויות: '+Math.max(0,free)));
+ const tiles=el('div',undefined,'tiles');for(const [key,icon,name] of [['attack','⚔','התקפה'],['defense','🛡','הגנה'],['specialty','⭐','התמחות']]){const n=(h.talents||[]).filter(t=>t===key).length;const t=button(icon+' '+name+(n?' ×'+n:''),()=>modal('בחירת שיפור קבוע ('+name+')?',()=>action({kind:'talent',unit:key})),'tile');t.disabled=free<=0;tiles.append(t);}inner.append(tiles);
+ if(town.relics.length){inner.append(el('h3','ציוד'));const t2=el('div',undefined,'tiles');for(const r of town.relics)t2.append(button('🎒 '+(equipment[r]?.name||r),()=>action({kind:'equip',unit:r}),'tile'));inner.append(t2);}
+ inner.append(el('h3','מסורת הממלכה · '),chips({gold:16,ore:6,crystal:4},town));const t3=el('div',undefined,'tiles');for(const [key,icon,name] of [['arms','⚔','כוח'],['bastion','🛡','מגן'],['trade','💰','סחר']])t3.append(button(icon+' '+name,()=>modal('מסורת קבועה: 🪙16 ⛏6 💎4 ופעולה. להמשיך?',()=>action({kind:'doctrine',unit:key})),'tile'));inner.append(t3);
+ const det=el('details');det.append(el('summary','יומן'));town.log.forEach(t=>det.append(el('div',t,'log')));inner.append(det);main.append(p);drawSheet();}
+function campaignArmy(main:HTMLElement){const {p,inner}=page('הצבא'),town=g(),h=active(town);const st=el('div',undefined,'statusrow');st.append(el('span','🧙 '+h.name,'chip'),el('span','⚡ '+h.ap+'/'+h.maxAp,'chip num'),el('span','יחידות '+N(town.army.filter(u=>u.hp>0).length+'/6'),'chip'));inner.append(st);
+ const grid=el('div',undefined,'armygrid');for(const u of town.army){const b=el('button',undefined,'utile army');b.type='button';b.append(img(art(u.faction||town.faction,u.kind)),el('small',u.name));const bar=el('span',undefined,'hpbar flat'),fill=el('i');fill.style.width=Math.max(4,Math.round(100*u.hp/u.max))+'%';bar.append(fill);const stt=el('span',undefined,'chips mini');stt.append(el('span','❤ '+u.hp+'/'+u.max,'chip num'),el('span','⚔ '+u.damage,'chip num'));b.append(bar,stt);b.onclick=()=>{sheet={t:'army',k:u.id};render();};grid.append(b);}inner.append(grid);main.append(p);drawSheet();}
+function campaignEconomy(main:HTMLElement){const {p,inner}=page('אוצר ושוק'),town=g(),e=economy(town);
+ const inc=el('div',undefined,'statusrow');inc.append(el('span','הכנסה ליום','chip'),chips(e.total));inner.append(inc);
+ const t=town.treasury||0;inner.append(el('h3','אוצר הבירה · רמה '+N(t+'/2')));if(t<2){const c=treasuryCosts[t],cc={gold:c[0],ore:c[1],crystal:c[2]},b=button('שדרוג',()=>action({kind:'treasury'}),'tile');b.disabled=town.gold<cc.gold||town.ore<cc.ore||town.crystal<cc.crystal;const r=el('div',undefined,'totalrow');r.append(b,chips(cc,town));inner.append(r);}
+ if(e.mines.length){inner.append(el('h3','⛏ מכרות'));for(const s of e.mines){const lv=s.incomeLevel||0,row=el('div',undefined,'totalrow');row.append(el('span',({gold:'🪙',ore:'⛏️',crystal:'💎'} as any)[s.resource||'gold']+' תא '+s.id+' · רמה '+lv));if(lv<2){const c=mineCosts[lv],cc={gold:c[0],ore:c[1],crystal:c[2]},b=button('שדרוג',()=>action({kind:'improveMine'}),'tile');b.disabled=town.gold<cc.gold||town.ore<cc.ore||town.crystal<cc.crystal;row.append(b,chips(cc,town));}inner.append(row);}}
+ inner.append(el('h3','⚖ שוק · כל עסקה עולה פעולה'));const mk=el('div',undefined,'tiles');for(const [k,tr] of Object.entries(trades)){const b=button(tr.amount+' '+ICO[tr.from]+'  ←  '+tr.receive+' '+ICO[tr.to],()=>action({kind:'trade',unit:k}),'tile');b.ariaLabel=tr.label;mk.append(b);}inner.append(mk);main.append(p);}
